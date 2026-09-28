@@ -19,16 +19,25 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
-"""Rolling-origin backtests: the harness that produces aligned forecasts and outcomes.
+r"""Rolling-origin backtests: the harness that produces aligned forecasts and outcomes.
 
 Every out-of-sample evaluation is the same loop: hold the sample at an
-origin, estimate on what is available, forecast the next ``h`` periods,
-record what happened, advance. :class:`Backtest` runs that loop so that
-the alignment every downstream test depends on but cannot check -- origin
-``t``'s ``h``-step forecast against the outcome at ``origin + h - 1`` --
-is made once, by construction, and the scoring, calibration, comparison,
-and model-confidence-set tools all read from the one record.
+origin, estimate on what is available, forecast the next :math:`H`
+periods, record what happened, advance. With :math:`o_t` the number of
+observations the :math:`t`-th estimation saw, the loop visits
+
+.. math::
+
+   o_t = \texttt{start} + t \cdot \texttt{step},
+   \qquad t = 0, \dots, T - 1,
+
+and stores, for every horizon :math:`h \le H` and series :math:`j`, the
+forecast :math:`\hat y_{\,o_t + h - 1 \mid o_t,\, j}` in the same cell as
+the outcome :math:`y_{\,o_t + h - 1,\, j}`. :class:`Backtest` runs that
+loop so that the alignment every downstream test depends on but cannot
+check is made once, by construction, and the scoring, calibration,
+comparison, and model-confidence-set tools all read from the one
+record, :class:`BacktestResult`.
 
 The model is supplied as a *fitting function* from a sample window to a
 fitted result, so anything that can be fitted to a prefix of the data
@@ -39,16 +48,52 @@ and its draws are recorded; one exposing ``forecast(steps)`` as a point
 forecaster. A ``predict`` callable overrides that convention for a
 forecaster from outside the package.
 
-Estimation is repeated at every origin. A stale-parameter schedule --
-re-estimating every ``r`` origins and forecasting from old parameters in
-between -- needs a result that can forecast from data it was not fitted
-to, a hook the result family does not carry; the ``step`` argument spaces
-the origins instead, which cuts cost the same way without a forecast ever
+Two commitments shape the surface. First, estimation is repeated at
+every origin. A stale-parameter schedule -- re-estimating every
+:math:`r` origins and forecasting from old parameters in between --
+needs a result that can forecast from data it was not fitted to, a hook
+the result family does not carry; the ``step`` argument spaces the
+origins instead, which cuts cost the same way without a forecast ever
 being made from a model that has not seen the sample up to its origin.
+Second, a loss is a series, not a number. Every loss the record
+computes -- squared, absolute, pinball, CRPS, log score -- comes back
+one value per origin, because a comparison test needs the difference of
+two such series and its serial correlation, and a summary statistic
+would have thrown away exactly what the test uses; the ``(H, k)``
+averages are conveniences on top.
+
+Layout. :class:`Backtest` is the harness and :class:`BacktestResult`
+the record it returns. The scores live in ``_core``: ``crps_from_draws``
+is the exact sample CRPS, ``_kernel_log_score`` the negative log
+predictive density by Gaussian kernel, and ``_pinball_loss`` the
+quantile loss; ``PredictiveResult`` is the protocol that marks a result
+as a density forecaster, and ``_validate_names`` / ``_variable_names``
+resolve the series labels. :class:`~cultivars._internals._SummaryMixin`
+gives the record its ``summary()``, ``str()``, and notebook rendering.
+
+References:
+    Diebold, F. X., & Mariano, R. S. (1995). Comparing predictive
+    accuracy. *Journal of Business & Economic Statistics*, 13(3),
+    253-263.
+
+    Gneiting, T., & Raftery, A. E. (2007). Strictly proper scoring
+    rules, prediction, and estimation. *Journal of the American
+    Statistical Association*, 102(477), 359-378.
+
+    Tashman, L. J. (2000). Out-of-sample tests of forecasting
+    accuracy: An analysis and review. *International Journal of
+    Forecasting*, 16(4), 437-450.
+
+    West, K. D. (2006). Forecast evaluation. In G. Elliott, C. W. J.
+    Granger, & A. Timmermann (Eds.), *Handbook of Economic
+    Forecasting* (Vol. 1, pp. 99-134). Elsevier.
 
 Example:
+    A VAR backtested from 100 observations, and the aligned loss series
+    a comparison test would take:
+
     >>> import numpy as np
-    >>> from cultivars.multivariate.reduced_form import VAR
+    >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
     >>> rng = np.random.default_rng(0)
     >>> y = np.zeros((160, 2))
     >>> for t in range(1, 160):
@@ -58,6 +103,15 @@ Example:
     (59, (59, 2, 2), False)
     >>> record.losses("squared", horizon=1, name="y1").shape
     (59,)
+
+    The same sample under a density forecaster, which unlocks the
+    proper scoring rules and the calibration record:
+
+    >>> from cultivars.multivariate.large_dim.bayesian import BVAR
+    >>> fit = lambda w: BVAR(w, order=1).fit(n_draws=100, seed=0)
+    >>> density = Backtest(y, fit, horizons=2, start=120, step=5).run(seed=0)
+    >>> density.n_origins, density.n_draws, density.mean_crps.shape
+    (8, 100, (2, 2))
 """
 
 from __future__ import annotations
@@ -85,16 +139,29 @@ __all__ = ["Backtest", "BacktestResult"]
 
 @dataclass(frozen=True, kw_only=True, slots=True, repr=False)
 class BacktestResult(_SummaryMixin):
-    """The aligned record of a rolling-origin forecasting exercise.
+    r"""The aligned record of a rolling-origin forecasting exercise.
 
     One row per evaluation origin, one slab per horizon, one column per
-    series: what was forecast, what happened, and -- for a density
-    forecaster -- the predictive draws behind the forecast. Everything
-    downstream (a density score, a calibration record, a Diebold-Mariano
-    or Clark-West comparison, a model confidence set) reads from these
+    series: what was forecast, what happened, and, for a density
+    forecaster, the predictive draws behind the forecast. Everything
+    downstream, a density score, a calibration record, a Diebold-Mariano
+    or Clark-West comparison, a model confidence set, reads from these
     arrays, so the alignment the comparison tests cannot verify is
-    guaranteed here by construction: origin ``t``'s ``h``-step forecast
-    and the outcome at ``origins[t] + h - 1`` are stored in the same cell.
+    guaranteed here by construction: origin :math:`t`'s :math:`h`-step
+    forecast and the outcome at ``origins[t] + h - 1`` are stored in the
+    same cell,
+
+    .. math::
+
+       \texttt{point}[t, h - 1, j] = \hat y_{\,o_t + h - 1 \mid o_t,\, j},
+       \qquad
+       \texttt{realized}[t, h - 1, j] = y_{\,o_t + h - 1,\, j},
+
+    with :math:`o_t` the number of observations the :math:`t`-th
+    estimation saw. Every loss the record computes is a function of
+    those two arrays and, for the density losses, the draws, and is
+    returned one value per origin so that a comparison test receives a
+    series it can difference against another backtest's.
 
     Attributes:
         names: Series labels.
@@ -110,55 +177,246 @@ class BacktestResult(_SummaryMixin):
         window: Observations each estimation used under a rolling scheme;
             the first origin's count under an expanding one.
         step: Origins between successive evaluations.
+
+    Note:
+        The record is the same type for a point and a density
+        forecaster; the difference is whether ``paths`` is ``None``, which
+        :attr:`is_density` reads. Every method that needs draws says so
+        in its error rather than returning a degenerate value, so a
+        point backtest handed to a calibration tool fails at the call
+        that needs the draws, with the remedy named. Losses are
+        negatively oriented throughout: smaller is better, including the
+        log score, which is the negative log predictive density.
+
+    See Also:
+        * :class:`Backtest` -- the harness that produces this record.
+        * :class:`~cultivars.forecast.comparison.ForecastComparison` and
+          :func:`~cultivars.forecast.comparison.clark_west` -- the
+          comparison tests :meth:`losses` feeds.
+        * :class:`~cultivars.forecast.calibration.Calibration` -- the
+          calibration record :meth:`record` feeds.
+        * :func:`~cultivars.forecast.confidence_set.model_confidence_set`
+          -- the set of models the losses cannot separate.
+
+    References:
+        Diebold, F. X., & Mariano, R. S. (1995). Comparing predictive
+        accuracy. *Journal of Business & Economic Statistics*, 13(3),
+        253-263.
+
+        Gneiting, T., & Raftery, A. E. (2007). Strictly proper scoring
+        rules, prediction, and estimation. *Journal of the American
+        Statistical Association*, 102(477), 359-378.
+
+        Tashman, L. J. (2000). Out-of-sample tests of forecasting
+        accuracy: An analysis and review. *International Journal of
+        Forecasting*, 16(4), 437-450.
+
+    Example:
+        A point backtest of a VAR, expanding from 100 observations, and
+        the aligned loss series a comparison test would take:
+
+        >>> import numpy as np
+        >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+        >>> rng = np.random.default_rng(0)
+        >>> y = np.zeros((160, 2))
+        >>> for t in range(1, 160):
+        ...     y[t] = 0.5 * y[t - 1] + rng.standard_normal(2)
+        >>> record = Backtest(y, lambda w: VAR(w, order=1).fit(), horizons=2, start=100).run()
+        >>> record.n_origins, record.horizons, record.k_endog, record.is_density
+        (59, 2, 2, False)
+        >>> record.origins[:3], record.realized.shape, record.paths is None
+        (array([100, 101, 102]), (59, 2, 2), True)
+        >>> record.losses("squared", horizon=2, name="y1").shape
+        (59,)
+        >>> record.rmse.round(2)
+        array([[1.06, 1.19],
+               [1.21, 1.21]])
+
+        A density backtest records draws and unlocks the density losses:
+
+        >>> from cultivars.multivariate.large_dim.bayesian import BVAR
+        >>> fit = lambda w: BVAR(w, order=1).fit(n_draws=100, seed=0)
+        >>> density = Backtest(y, fit, horizons=2, start=120, step=5).run()
+        >>> density.n_origins, density.n_draws, density.paths.shape
+        (8, 100, (8, 100, 2, 2))
+        >>> density.losses("crps", horizon=1).shape, density.record(2)[0].shape
+        ((8, 2), (8, 100, 2))
     """
 
     names: tuple[str, ...]
+    """Series labels, in column order; ``"y1"``, ``"y2"``, ... unless the sample carried names."""
     horizons: int
+    """Longest horizon :math:`H`; every horizon ``1 .. H`` has a slab in the arrays."""
     origins: npt.NDArray[np.intp] = field(repr=False)
+    """``(T,)`` observations available at each origin, ascending, ``step`` apart.
+
+    Origin ``t`` was estimated on the first ``origins[t]`` rows of the
+    sample (the last ``window`` of them under a rolling scheme) and
+    forecast rows ``origins[t] .. origins[t] + H - 1``. Kept out of the
+    repr.
+    """
     realized: npt.NDArray[np.float64] = field(repr=False)
+    """``(T, H, k)`` outcomes, ``realized[t, h - 1]`` the sample row ``origins[t] + h - 1``.
+
+    Kept out of the repr.
+    """
     point: npt.NDArray[np.float64] = field(repr=False)
+    """``(T, H, k)`` point forecasts, aligned with ``realized`` cell for cell.
+
+    The result's ``forecast`` for a point forecaster; the mean of the
+    predictive draws for a density one. Kept out of the repr.
+    """
     paths: npt.NDArray[np.float64] | None = field(repr=False)
+    """``(T, S, H, k)`` predictive draws, or ``None`` for a point forecaster.
+
+    ``paths[t, :, h - 1]`` are the :math:`S` draws of the :math:`h`-step
+    predictive distribution from origin ``t``; ``paths[t].mean(axis=0)``
+    is ``point[t]``. Kept out of the repr.
+    """
     scheme: str
+    """``"expanding"``, each estimation on every row up to its origin, or ``"rolling"``."""
     window: int
+    """Rows each estimation used under a rolling scheme; the first origin's count when expanding."""
     step: int
+    """Origins between successive evaluations; ``1`` evaluates every origin."""
 
     @property
     def n_origins(self) -> int:
-        """Evaluation origins."""
+        """Evaluation origins, :math:`T`, the length of every loss series.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> y = np.random.default_rng(0).standard_normal((130, 2))
+            >>> Backtest(y, lambda w: VAR(w, order=1).fit(), horizons=1, start=100).run().n_origins
+            30
+        """
         return int(self.origins.shape[0])
 
     @property
     def k_endog(self) -> int:
-        """Series forecast."""
+        """Series forecast, :math:`k`, the last axis of every array."""
         return len(self.names)
 
     @property
     def n_draws(self) -> int:
-        """Predictive draws per origin, zero for a point forecaster."""
+        """Predictive draws per origin, :math:`S`; zero for a point forecaster."""
         return 0 if self.paths is None else int(self.paths.shape[1])
 
     @property
     def is_density(self) -> bool:
-        """Whether predictive draws were recorded."""
+        """Whether predictive draws were recorded, which the density losses and :meth:`record` need.
+
+        ``paths is not None``.
+        """
         return self.paths is not None
 
     @property
     def errors(self) -> npt.NDArray[np.float64]:
-        """``(T, H, k)`` forecast errors ``point - realized``."""
+        """``(T, H, k)`` forecast errors ``point - realized``.
+
+        The sign convention is forecast minus outcome, so a positive
+        error is an over-forecast. Recomputed on each access from the
+        two stored arrays.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> y = np.random.default_rng(0).standard_normal((130, 2))
+            >>> record = Backtest(y, lambda w: VAR(w, order=1).fit(), horizons=3, start=100).run()
+            >>> record.errors.shape
+            (28, 3, 2)
+            >>> bool(np.allclose(record.errors, record.point - record.realized))
+            True
+        """
         return np.asarray(self.point - self.realized, dtype=np.float64)
 
     def _horizon_index(self, horizon: int) -> int:
+        """The slab index of a one-based horizon, after checking it exists.
+
+        Args:
+            horizon: A horizon in ``1 .. horizons``.
+
+        Returns:
+            ``horizon - 1``.
+
+        Raises:
+            SpecificationError: If the horizon is outside the record.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> y = np.random.default_rng(0).standard_normal((130, 2))
+            >>> record = Backtest(y, lambda w: VAR(w, order=1).fit(), horizons=2, start=100).run()
+            >>> record._horizon_index(2)
+            1
+            >>> record._horizon_index(3)
+            Traceback (most recent call last):
+                ...
+            cultivars.exceptions.SpecificationError: horizon must lie in 1 .. 2; got 3.
+        """
         if not 1 <= horizon <= self.horizons:
             raise SpecificationError(f"horizon must lie in 1 .. {self.horizons}; got {horizon}.")
         return horizon - 1
 
     def _series_index(self, name: str) -> int:
+        """The column index of a series label, after checking it exists.
+
+        Args:
+            name: One of ``names``.
+
+        Returns:
+            Its position.
+
+        Raises:
+            SpecificationError: If the label is unknown.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> y = np.random.default_rng(0).standard_normal((130, 2))
+            >>> record = Backtest(y, lambda w: VAR(w, order=1).fit(), horizons=1, start=100).run()
+            >>> record._series_index("y2")
+            1
+        """
         if name not in self.names:
             raise SpecificationError(f"unknown series {name!r}; expected one of {self.names}.")
         return self.names.index(name)
 
     def _density_losses(self, kind: str) -> npt.NDArray[np.float64]:
-        """``(T, H, k)`` CRPS or log scores, one origin at a time."""
+        r"""``(T, H, k)`` CRPS or log scores, one origin at a time.
+
+        Each cell scores the :math:`S` draws at that origin, horizon,
+        and series against the outcome: the CRPS as the sample estimate
+
+        .. math::
+
+           \mathrm{CRPS} = \frac{1}{S} \sum_{s} |x_s - y|
+           - \frac{1}{2 S^2} \sum_{s, s'} |x_s - x_{s'}|,
+
+        and the log score as the negative log of a kernel density of
+        the draws at the outcome. Both are computed for every horizon
+        at once because the loop over origins dominates and the
+        per-horizon slices are cheap.
+
+        Args:
+            kind: ``"crps"`` or ``"log"``.
+
+        Returns:
+            The ``(T, H, k)`` array, negatively oriented.
+
+        Raises:
+            SpecificationError: If the backtest recorded no draws.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.large_dim.bayesian import BVAR
+            >>> y = np.random.default_rng(0).standard_normal((140, 2))
+            >>> fit = lambda w: BVAR(w, order=1).fit(n_draws=50, seed=0)
+            >>> record = Backtest(y, fit, horizons=2, start=130, step=5).run()
+            >>> record._density_losses("crps").shape
+            (2, 2, 2)
+        """
         if self.paths is None:
             raise SpecificationError(
                 f"{kind} losses need predictive draws; this backtest recorded point forecasts "
@@ -172,15 +430,34 @@ class BacktestResult(_SummaryMixin):
         return out
 
     def quantile(self, tau: float, *, horizon: int = 1) -> npt.NDArray[np.float64]:
-        """``(T, k)`` quantile forecasts at level ``tau`` for one horizon.
+        r"""``(T, k)`` quantile forecasts at level :math:`\tau` for one horizon.
 
-        From the predictive draws when they were recorded; for a point
-        backtest the recorded forecasts *are* the quantile forecasts --
-        the case of a quantile regression backtested through ``predict``
-        -- and are returned as given.
+        From the predictive draws when they were recorded, as the
+        empirical :math:`\tau`-quantile across the :math:`S` draws at each
+        origin; for a point backtest the recorded forecasts *are* the
+        quantile forecasts, the case of a quantile regression backtested
+        through ``predict``, and are returned as given whatever
+        :math:`\tau` is asked for.
+
+        Args:
+            tau: The level, strictly inside ``(0, 1)``.
+            horizon: The horizon, in ``1 .. horizons``.
+
+        Returns:
+            The ``(T, k)`` quantile forecasts.
 
         Raises:
             SpecificationError: If the level or horizon is unusable.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.large_dim.bayesian import BVAR
+            >>> y = np.random.default_rng(0).standard_normal((140, 2))
+            >>> fit = lambda w: BVAR(w, order=1).fit(n_draws=50, seed=0)
+            >>> record = Backtest(y, fit, horizons=1, start=130, step=5).run()
+            >>> low, high = record.quantile(0.1), record.quantile(0.9)
+            >>> low.shape, bool(np.all(low < high))
+            ((2, 2), True)
         """
         if not 0.0 < tau < 1.0:
             raise SpecificationError(f"tau must lie strictly inside (0, 1); got {tau}.")
@@ -197,23 +474,50 @@ class BacktestResult(_SummaryMixin):
         name: str | None = None,
         tau: float | None = None,
     ) -> npt.NDArray[np.float64]:
-        """One loss series per origin, aligned for a comparison test.
+        r"""One loss series per origin, aligned for a comparison test.
+
+        The five losses are the squared and absolute error of the point
+        forecast, the CRPS and log score of the predictive draws, and
+        the pinball loss of the :math:`\tau`-quantile forecast,
+
+        .. math::
+
+           \ell_\tau(y, q) = (y - q)\bigl(\tau - \mathbb{1}\{y < q\}\bigr),
+
+        which is the loss a quantile forecast is optimal under. Each is
+        returned per origin so that two backtests on the same origins
+        can be differenced; that difference is what a
+        :class:`~cultivars.forecast.comparison.ForecastComparison` tests.
 
         Args:
             kind: ``"squared"`` or ``"absolute"`` on the point forecast;
                 ``"crps"`` or ``"log"`` on the predictive draws;
                 ``"pinball"`` on the ``tau``-quantile forecast.
-            horizon: The horizon to score.
+            horizon: The horizon to score, in ``1 .. horizons``.
             name: A series label for a ``(T,)`` series; ``None`` returns
                 ``(T, k)``.
             tau: The quantile level, required by and only by ``"pinball"``.
 
         Returns:
-            The losses, negatively oriented.
+            The losses, negatively oriented, ``(T,)`` or ``(T, k)``.
 
         Raises:
             SpecificationError: If the kind, horizon, name, or level is
                 unusable, or a density loss is asked of a point backtest.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> y = np.random.default_rng(0).standard_normal((130, 2))
+            >>> record = Backtest(y, lambda w: VAR(w, order=1).fit(), horizons=2, start=100).run()
+            >>> record.losses().shape, record.losses("absolute", horizon=2, name="y1").shape
+            ((29, 2), (29,))
+            >>> bool(np.allclose(record.losses("squared"), record.errors[:, 0, :] ** 2))
+            True
+            >>> record.losses("crps")  # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+                ...
+            cultivars.exceptions.SpecificationError: crps losses need predictive draws; ...
         """
         if kind not in ("squared", "absolute", "crps", "log", "pinball"):
             raise SpecificationError(
@@ -244,11 +548,30 @@ class BacktestResult(_SummaryMixin):
     def record(self, horizon: int = 1) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """One horizon's ``(paths, realized)`` as ``(T, S, k)`` and ``(T, k)``.
 
-        The shapes a calibration record takes.
+        The shapes a calibration record takes: the draws of the
+        :math:`h`-step predictive distribution at each origin beside the
+        outcome they were for, which is what a probability integral
+        transform is computed from.
+
+        Args:
+            horizon: The horizon, in ``1 .. horizons``.
+
+        Returns:
+            ``(paths, realized)`` for that horizon.
 
         Raises:
             SpecificationError: If the horizon is unknown or no draws were
                 recorded.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.large_dim.bayesian import BVAR
+            >>> y = np.random.default_rng(0).standard_normal((140, 2))
+            >>> fit = lambda w: BVAR(w, order=1).fit(n_draws=50, seed=0)
+            >>> record = Backtest(y, fit, horizons=2, start=130, step=5).run()
+            >>> paths, realized = record.record(2)
+            >>> paths.shape, realized.shape
+            ((2, 50, 2), (2, 2))
         """
         h = self._horizon_index(horizon)
         if self.paths is None:
@@ -263,26 +586,87 @@ class BacktestResult(_SummaryMixin):
 
     @property
     def rmse(self) -> npt.NDArray[np.float64]:
-        """``(H, k)`` root mean squared errors."""
+        """``(H, k)`` root mean squared errors, averaged over origins.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> y = np.random.default_rng(0).standard_normal((130, 2))
+            >>> record = Backtest(y, lambda w: VAR(w, order=1).fit(), horizons=3, start=100).run()
+            >>> record.rmse.shape
+            (3, 2)
+        """
         return np.asarray(np.sqrt((self.errors**2).mean(axis=0)), dtype=np.float64)
 
     @property
     def mae(self) -> npt.NDArray[np.float64]:
-        """``(H, k)`` mean absolute errors."""
+        """``(H, k)`` mean absolute errors, averaged over origins.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> y = np.random.default_rng(0).standard_normal((130, 2))
+            >>> record = Backtest(y, lambda w: VAR(w, order=1).fit(), horizons=3, start=100).run()
+            >>> bool(np.all(record.mae <= record.rmse))
+            True
+        """
         return np.asarray(np.abs(self.errors).mean(axis=0), dtype=np.float64)
 
     @property
     def mean_crps(self) -> npt.NDArray[np.float64]:
-        """``(H, k)`` mean continuous ranked probability scores; needs draws."""
+        """``(H, k)`` mean continuous ranked probability scores; needs draws.
+
+        Raises:
+            SpecificationError: If the backtest recorded no draws.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.large_dim.bayesian import BVAR
+            >>> y = np.random.default_rng(0).standard_normal((140, 2))
+            >>> fit = lambda w: BVAR(w, order=1).fit(n_draws=50, seed=0)
+            >>> Backtest(y, fit, horizons=2, start=130, step=5).run().mean_crps.shape
+            (2, 2)
+        """
         return np.asarray(self._density_losses("crps").mean(axis=0), dtype=np.float64)
 
     @property
     def mean_log_score(self) -> npt.NDArray[np.float64]:
-        """``(H, k)`` mean negative log predictive densities; needs draws."""
+        """``(H, k)`` mean negative log predictive densities; needs draws.
+
+        Raises:
+            SpecificationError: If the backtest recorded no draws.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.large_dim.bayesian import BVAR
+            >>> y = np.random.default_rng(0).standard_normal((140, 2))
+            >>> fit = lambda w: BVAR(w, order=1).fit(n_draws=50, seed=0)
+            >>> Backtest(y, fit, horizons=2, start=130, step=5).run().mean_log_score.shape
+            (2, 2)
+        """
         return np.asarray(self._density_losses("log").mean(axis=0), dtype=np.float64)
 
     def _summary_table(self) -> SummaryTable:
-        """Build the structured summary: one row per horizon and series."""
+        """Build the structured summary: one row per horizon and series.
+
+        RMSE, MAE, and, when draws were recorded, mean CRPS per cell,
+        under a header with the counts and the scheme; the notes
+        describe the scheme, restate the alignment rule, and say which
+        tools the record can feed.
+
+        Returns:
+            The :class:`~cultivars._core.SummaryTable` that ``summary()``,
+            ``str()``, and the notebook renderer display.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> y = np.random.default_rng(0).standard_normal((130, 2))
+            >>> record = Backtest(y, lambda w: VAR(w, order=1).fit(), horizons=2, start=100).run()
+            >>> table = record._summary_table()
+            >>> table.columns, len(table.rows), table.rows[0][:2]
+            (('h', 'series', 'RMSE', 'MAE', 'mean CRPS'), 4, ('1', 'y1'))
+        """
         rmse, mae = self.rmse, self.mae
         crps = self.mean_crps if self.paths is not None else None
         rows = tuple(
@@ -332,14 +716,45 @@ class BacktestResult(_SummaryMixin):
 
 
 class Backtest:
-    """Run a rolling- or expanding-origin forecasting exercise.
+    r"""Run a rolling- or expanding-origin forecasting exercise.
+
+    The harness behind every out-of-sample evaluation in the package.
+    Given the full sample and a *fitting function* from a sample window
+    to a fitted result, it visits the origins
+
+    .. math::
+
+       o_t = \texttt{start} + t \cdot \texttt{step},
+       \qquad t = 0, \dots, T - 1,
+       \qquad
+       T = \Bigl\lfloor \frac{n - H - \texttt{start}}{\texttt{step}} \Bigr\rfloor + 1,
+
+    and at each one estimates on the observations available -- all
+    :math:`o_t` of them under the expanding scheme, the last
+    :math:`\texttt{window}` under the rolling one -- forecasts horizons
+    :math:`1, \dots, H`, and stores the forecast beside the outcome it was
+    for, :math:`y_{o_t + h - 1}`. The record that comes back,
+    :class:`BacktestResult`, is therefore aligned by construction, which
+    is the one property the comparison, calibration, and confidence-set
+    tools depend on and cannot verify for themselves.
+
+    How the fitted result is asked to forecast is a convention the harness
+    applies for the package's own families, and a ``predict`` hook
+    overrides it for any other. A result exposing
+    ``forecast_paths(steps, seed=...)`` (every sampled result with a
+    closed system) is treated as a density forecaster and its draws are
+    kept; one exposing ``forecast(steps)`` as a point forecaster. The
+    fitting function receives exactly what the model constructor would:
+    an ``(m, k)`` window for a multivariate sample, an ``(m,)`` one for a
+    single series.
 
     Args:
         endog: The full sample, ``(n,)`` or ``(n, k)``.
         fit: A function from a sample window ``(m, k)`` (``(m,)`` for a
-            single series) to a fitted result.
-        horizons: Longest horizon; every horizon ``1 .. horizons`` is
-            forecast and recorded.
+            single series) to a fitted result, typically
+            ``lambda w: VAR(w, order=2).fit()``.
+        horizons: Longest horizon :math:`H`; every horizon ``1 .. horizons``
+            is forecast and recorded.
         start: Observations in the first estimation window. The first
             origin forecasts rows ``start .. start + horizons - 1``.
         scheme: ``"expanding"`` grows the window from ``start``;
@@ -354,11 +769,98 @@ class Backtest:
             offers it, else ``forecast(steps)``.
         names: Series labels; default ``y1 .. yk`` (``y`` for one series).
 
+    Attributes:
+        _endog: The validated sample as ``(n, k)`` ``float64``, a single
+            series stored as one column.
+        _fit: The fitting function, called once per origin.
+        _horizons: :math:`H`.
+        _start: Observations in the first estimation window.
+        _scheme: ``"expanding"`` or ``"rolling"``.
+        _window: The resolved rolling window, ``start`` when none was given;
+            recorded on the result under either scheme.
+        _step: Origins between successive evaluations.
+        _predict: The override forecasting hook, or ``None`` for the
+            convention.
+        _names: The resolved series labels.
+        _univariate: Whether the sample arrived one-dimensional, so that
+            each window is handed to ``fit`` as ``(m,)``.
+
     Raises:
         SpecificationError: If the window, horizon, or step leaves no
             origin to evaluate, or the scheme is unknown.
-        DimensionError: If the sample is not one- or two-dimensional.
+        DimensionError: If the sample is not one- or two-dimensional, or
+            the labels do not match its columns.
         NumericalError: If the sample is not finite.
+
+    Note:
+        Estimation is repeated at every origin; there is no
+        stale-parameter schedule that re-estimates every :math:`r` origins
+        and forecasts from old parameters in between, because that needs
+        a result able to forecast from data it was not fitted to, a hook
+        the result family does not carry. ``step`` spaces the origins
+        instead, which cuts the cost the same way without a forecast ever
+        being made from a model that has not seen the sample up to its
+        origin. Nothing is estimated until :meth:`run` is called;
+        constructing the harness only validates the schedule.
+
+    Warning:
+        A forecast made with ``seed=None`` draws fresh predictive shocks
+        on every run, so two density backtests of the same sample will
+        differ at display precision unless :meth:`run` is given a seed.
+        Point backtests are deterministic regardless.
+
+    See Also:
+        * :class:`BacktestResult` -- the aligned record :meth:`run`
+          returns, and the losses it computes.
+        * :class:`~cultivars.forecast.comparison.ForecastComparison` --
+          the test two records feed.
+        * :func:`~cultivars.forecast.confidence_set.model_confidence_set`
+          -- the set of forecasters a collection of records cannot
+          separate.
+
+    References:
+        Tashman, L. J. (2000). Out-of-sample tests of forecasting
+        accuracy: An analysis and review. *International Journal of
+        Forecasting*, 16(4), 437-450.
+
+        West, K. D. (2006). Forecast evaluation. In G. Elliott, C. W. J.
+        Granger, & A. Timmermann (Eds.), *Handbook of Economic
+        Forecasting* (Vol. 1, pp. 99-134). Elsevier.
+
+    Example:
+        A VAR backtested from 100 observations, then a rolling schedule
+        that evaluates every tenth origin on a 60-observation window:
+
+        >>> import numpy as np
+        >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+        >>> y = np.random.default_rng(0).standard_normal((130, 2))
+        >>> harness = Backtest(y, lambda w: VAR(w, order=1).fit(), horizons=2, start=100)
+        >>> harness.origins[:3], harness.origins.shape
+        (array([100, 101, 102]), (29,))
+        >>> harness.run().point.shape
+        (29, 2, 2)
+        >>> rolling = Backtest(
+        ...     y, lambda w: VAR(w, order=1).fit(), start=100, scheme="rolling", window=60, step=10
+        ... )
+        >>> rolling.origins, rolling.run().window
+        (array([100, 110, 120]), 60)
+
+        A forecaster from outside the package is backtested through
+        ``predict``; here the historical mean, whose "result" is the
+        window's mean and whose forecast repeats it at every horizon:
+
+        >>> benchmark = Backtest(
+        ...     y[:, 0],
+        ...     lambda w: w.mean(),
+        ...     horizons=2,
+        ...     start=100,
+        ...     predict=lambda mean, steps, seed: np.full(steps, mean),
+        ... )
+        >>> record = benchmark.run()
+        >>> record.names, record.point.shape
+        (('y',), (29, 2, 1))
+        >>> bool(np.isclose(record.point[0, 0, 0], y[:100, 0].mean()))
+        True
     """
 
     __slots__ = (
@@ -387,7 +889,47 @@ class Backtest:
         predict: Callable[[object, int, int | None], npt.ArrayLike] | None = None,
         names: Sequence[str] | None = None,
     ) -> None:
-        """Validate the schedule."""
+        """Validate the sample and the schedule; estimate nothing.
+
+        The sample is coerced to ``float64`` and a single series stored as
+        one column, with the fact remembered so that windows go back to
+        ``fit`` in the shape they arrived. The schedule is checked to
+        leave at least one origin: ``start`` must be at least one and at
+        most ``n - horizons``, a rolling window at most ``start``.
+
+        Args:
+            endog: The full sample, ``(n,)`` or ``(n, k)``.
+            fit: The fitting function, stored as given.
+            horizons: Checked to be at least one.
+            start: Checked to lie in ``1 .. n - horizons``.
+            scheme: Checked to be ``"expanding"`` or ``"rolling"``.
+            window: Resolved to ``start`` when ``None``; under the rolling
+                scheme checked to lie in ``1 .. start``.
+            step: Checked to be at least one.
+            predict: Stored as given.
+            names: Checked against the number of columns; defaulted to
+                ``y1 .. yk``, or ``y`` for a single series.
+
+        Raises:
+            SpecificationError: If the scheme is unknown, or the horizon,
+                step, start, or window is out of range.
+            DimensionError: If the sample is not one- or two-dimensional,
+                or the labels do not match its columns.
+            NumericalError: If the sample is not finite.
+
+        Example:
+            >>> import numpy as np
+            >>> y = np.random.default_rng(0).standard_normal((130, 2))
+            >>> Backtest(y, lambda w: w, start=130)  # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+                ...
+            cultivars.exceptions.SpecificationError: start must leave at least one origin ...
+            >>> rolling = dict(start=100, scheme="rolling", window=120)
+            >>> Backtest(y, lambda w: w, **rolling)  # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+                ...
+            cultivars.exceptions.SpecificationError: a rolling window must lie in 1 .. start ...
+        """
         data = np.asarray(endog, dtype=np.float64)
         univariate = data.ndim == 1
         if univariate:
@@ -429,18 +971,95 @@ class Backtest:
 
     @property
     def origins(self) -> npt.NDArray[np.intp]:
-        """Observations available at each origin the schedule will evaluate."""
+        r"""Observations available at each origin the schedule will evaluate.
+
+        The arithmetic sequence ``start, start + step, ...`` up to the last
+        value that still leaves ``horizons`` rows to forecast,
+        :math:`n - H`; its length is the :math:`T` of the record
+        :meth:`run` returns.
+
+        Example:
+            >>> import numpy as np
+            >>> y = np.random.default_rng(0).standard_normal((130, 2))
+            >>> Backtest(y, lambda w: w, horizons=2, start=100, step=7).origins
+            array([100, 107, 114, 121, 128])
+        """
         n = self._endog.shape[0]
         return np.arange(self._start, n - self._horizons + 1, self._step, dtype=np.intp)
 
     def _window_at(self, origin: int) -> npt.NDArray[np.float64]:
-        """The estimation sample at one origin."""
+        """The estimation sample at one origin, in the shape ``fit`` expects.
+
+        Rows ``0 .. origin - 1`` under the expanding scheme, the last
+        ``window`` of them under the rolling one; a single series is
+        handed back as ``(m,)``, the way it arrived. A view of the stored
+        sample, not a copy.
+
+        Args:
+            origin: Observations available, one of :attr:`origins`.
+
+        Returns:
+            The ``(m, k)`` or ``(m,)`` window.
+
+        Example:
+            >>> import numpy as np
+            >>> y = np.random.default_rng(0).standard_normal((130, 2))
+            >>> Backtest(y, lambda w: w, start=100)._window_at(110).shape
+            (110, 2)
+            >>> rolling = Backtest(y, lambda w: w, start=100, scheme="rolling", window=60)
+            >>> rolling._window_at(110).shape, bool(np.all(rolling._window_at(110) == y[50:110]))
+            ((60, 2), True)
+            >>> Backtest(y[:, 0], lambda w: w, start=100)._window_at(100).shape
+            (100,)
+        """
         first = origin - self._window if self._scheme == "rolling" else 0
         block = self._endog[first:origin]
         return block[:, 0] if self._univariate else block
 
     def _forecast(self, result: object, seed: int | None) -> npt.NDArray[np.float64]:
-        """One origin's forecast as ``(n_draws, H, k)`` draws or ``(H, k)`` points."""
+        """One origin's forecast as ``(n_draws, H, k)`` draws or ``(H, k)`` points.
+
+        Applies the forecasting convention and normalizes what comes back.
+        The ``predict`` hook is called when given; otherwise a result
+        satisfying :class:`~cultivars._core.PredictiveResult` is asked for
+        ``forecast_paths(H, seed=seed)`` and any other for ``forecast(H)``.
+        The raw array is then read by shape, in this order: a
+        ``(H, k, 3)`` low/mean/high summary, the ``forecast()`` of the
+        sampled families, keeps its middle column; an ``(H,)`` vector for
+        a single series becomes ``(H, 1)``; an ``(H, k)`` array is a point
+        forecast; an ``(S, H)`` array for a single series becomes
+        ``(S, H, 1)``; and an ``(S, H, k)`` array is a set of draws.
+
+        Args:
+            result: What the fitting function returned at this origin.
+            seed: Passed to ``forecast_paths`` or the ``predict`` hook, so
+                that each origin draws its own predictive shocks.
+
+        Returns:
+            The normalized forecast; three-dimensional for draws,
+            two-dimensional for points.
+
+        Raises:
+            SpecificationError: If no hook was given and the result offers
+                neither ``forecast_paths`` nor a callable ``forecast``.
+            DimensionError: If the forecast has none of the recognized
+                shapes.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> from cultivars.multivariate.large_dim.bayesian import BVAR
+            >>> y = np.random.default_rng(0).standard_normal((130, 2))
+            >>> harness = Backtest(y, lambda w: w, horizons=2, start=100)
+            >>> harness._forecast(VAR(y, order=1).fit(), None).shape
+            (2, 2)
+            >>> harness._forecast(BVAR(y, order=1).fit(n_draws=20, seed=0), 0).shape
+            (20, 2, 2)
+            >>> harness._forecast(object(), None)  # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+                ...
+            cultivars.exceptions.SpecificationError: object offers neither forecast_paths() ...
+        """
         k, steps = self._endog.shape[1], self._horizons
         if self._predict is not None:
             raw = np.asarray(self._predict(result, steps, seed), dtype=np.float64)
@@ -472,10 +1091,21 @@ class Backtest:
     def run(self, *, seed: int | None = None) -> BacktestResult:
         """Estimate at every origin, forecast, and record.
 
+        The loop the class exists for. At each origin the fitting function
+        is called on the window, the result is asked to forecast through
+        :meth:`_forecast`, and the forecast is stored beside the outcomes
+        ``endog[origin : origin + horizons]``. Whether the exercise is a
+        point or a density backtest is decided by the first origin's
+        forecast and then enforced: every origin must produce the same
+        kind, and every density origin the same number of draws, so that
+        the record's arrays are rectangular. The point forecast recorded
+        for a density origin is the mean of its draws.
+
         Args:
             seed: Base seed for the predictive draws; origin ``t`` uses
                 ``seed + t`` so that repeated runs reproduce and origins
-                do not share shocks.
+                do not share shocks. ``None`` leaves every origin's draws
+                unseeded.
 
         Returns:
             The :class:`BacktestResult`.
@@ -483,8 +1113,31 @@ class Backtest:
         Raises:
             SpecificationError: If a forecaster cannot be read.
             DimensionError: If a forecast has an unexpected shape, or
-                origins disagree on the number of draws.
+                origins disagree on the number of draws or on whether
+                they produce draws at all.
             NumericalError: If a forecast is not finite.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.large_dim.bayesian import BVAR
+            >>> y = np.random.default_rng(0).standard_normal((130, 2))
+            >>> fit = lambda w: BVAR(w, order=1).fit(n_draws=20, seed=0)
+            >>> harness = Backtest(y, fit, horizons=2, start=120, step=5)
+            >>> first, again = harness.run(seed=1), harness.run(seed=1)
+            >>> first.paths.shape, bool(np.array_equal(first.paths, again.paths))
+            ((2, 20, 2, 2), True)
+            >>> bool(np.allclose(first.point, first.paths.mean(axis=1)))
+            True
+
+            A hook whose number of draws changes between origins is
+            refused rather than padded:
+
+            >>> draws = lambda result, h, seed: np.zeros((seed + 2, h, 2))
+            >>> uneven = Backtest(y, lambda w: None, start=100, step=10, predict=draws)
+            >>> uneven.run(seed=0)  # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+                ...
+            cultivars.exceptions.DimensionError: origin 110 produced 3 draws; earlier origins ...
         """
         origins = self.origins
         n_origins, k, steps = origins.shape[0], self._endog.shape[1], self._horizons
