@@ -1,0 +1,138 @@
+name: Build and Publish Prerelease
+
+on:
+  push:
+    tags:
+      # PEP 440 prerelease segments only: v1.2.3a1, v1.2.3b2, v1.2.3rc1
+      - "v[0-9]+.[0-9]+.[0-9]+[ab][0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+rc[0-9]+"
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify tag is on dev
+        run: |
+          git merge-base --is-ancestor HEAD origin/dev \
+            || { echo "::error::Tag $GITHUB_REF_NAME is not reachable from dev"; exit 1; }
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Build package
+        run: uv build
+
+      - name: Verify tag matches built version
+        run: |
+          test -f "dist/cultivars-${GITHUB_REF_NAME#v}.tar.gz" \
+            || { echo "::error::No sdist for ${GITHUB_REF_NAME#v} in dist/ ($(ls dist))"; exit 1; }
+
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  publish-to-pypi:
+    name: Publish prerelease to PyPI
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+
+      - name: Publish to PyPI
+        run: uv publish dist/*
+
+  sign-and-release:
+    name: >-
+      Sign and publish GitHub prerelease
+    needs:
+      - publish-to-pypi
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all the dists
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Sign the dists with Sigstore
+        uses: sigstore/gh-action-sigstore-python@v3.0.0
+        with:
+          inputs: >-
+            ./dist/*.tar.gz
+            ./dist/*.whl
+
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v5
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: GPG sign packages
+        run: |
+          echo "GPG signing distribution packages..."
+          for file in dist/*.tar.gz dist/*.whl; do
+            if [ -f "$file" ]; then
+              echo "Signing $file"
+              gpg --detach-sign --armor "$file"
+            fi
+          done
+          ls -la dist/
+
+      - name: Create GitHub prerelease
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Prerelease ${{ github.ref_name }}
+          draft: false
+          prerelease: true
+          files: |
+            dist/*.tar.gz
+            dist/*.whl
+            dist/*.asc
+            dist/*.json
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify GPG signatures
+        run: |
+          echo "Verifying GPG signatures..."
+          for asc in dist/*.asc; do
+            base_file="${asc%.asc}"
+            if [ -f "$base_file" ]; then
+              echo "Verifying signature for $base_file"
+              gpg --verify "$asc" "$base_file"
+            fi
+          done
