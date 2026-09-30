@@ -19,11 +19,30 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""Metadata about the cultivars package.
+r"""Package metadata: the single source of the version and the identity strings.
 
-This module defines metadata about the cultivars package, including its title, version, author, and
-other relevant information. This information is used for package distribution and documentation
-purposes.
+The build reads ``__version__`` from this file (``[tool.hatch.version]``
+in ``pyproject.toml`` points here), so the distribution's version and
+the installed package's agree by construction rather than by a release
+checklist; bump it here and nowhere else. The remaining names are the
+identity strings the documentation build and the distribution metadata
+share -- title, one-line and long descriptions, author, licence,
+repository and documentation URLs -- kept as plain module attributes so
+that ``cultivars.__about__.__version__`` is readable without importing
+anything that touches ``numpy`` or ``scipy``.
+
+The version follows PEP 440. A pre-release tag (``1.0.0a1``) marks an
+API that may still move; a final ``1.0.0`` is the point after which
+public names in the leaf modules are stable and removals go through a
+deprecation cycle.
+
+Example:
+    >>> import re
+    >>> from cultivars.__about__ import __version__, __title__, __license__
+    >>> __title__, __license__
+    ('cultivars', 'MIT')
+    >>> bool(re.fullmatch(r"\d+\.\d+\.\d+((a|b|rc)\d+)?(\.post\d+)?(\.dev\d+)?", __version__))
+    True
 """
 
 __title__ = "cultivars"
