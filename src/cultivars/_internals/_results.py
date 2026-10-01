@@ -477,6 +477,16 @@ class _MeanFunctionResult(_SummaryMixin, _SeriesMixin, _ComparisonMixin):
             ("sigma2", f"{self.sigma2:.4f}"),
         )
 
+    def likelihood_ratio_test(self, unrestricted: _ComparisonMixin) -> _LikelihoodRatioTest:
+        """Refuse the test: a network's weights are unidentified under a linear null."""
+        raise SpecificationError(
+            "a chi-squared likelihood-ratio test is not valid for a learned mean "
+            "function: under the null the input-to-hidden weights are unidentified "
+            "and the hidden-to-output weights sit on a boundary, so the statistic "
+            "has a non-standard distribution. Use a bootstrap or the Terasvirta-"
+            "Lin-Granger neural linearity test instead."
+        )
+
     def _likelihood_ratio_obstacle(self, counterpart: _ComparisonMixin) -> str | None:
         """Block every chi-squared likelihood-ratio test involving this result.
 

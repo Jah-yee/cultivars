@@ -324,6 +324,10 @@ class _ComparisonMixin:
                 two models are not nested the way the call assumes.
             DimensionError: If the two were fitted to different samples.
         """
+        for owner, other in ((self, unrestricted), (unrestricted, self)):
+            obstacle = getattr(owner, "_likelihood_ratio_obstacle", None)
+            if obstacle is not None and (message := obstacle(other)) is not None:
+                raise SpecificationError(message)
         if self.nobs != unrestricted.nobs:
             raise DimensionError(
                 f"a likelihood-ratio test requires a common sample; got {self.nobs} "
