@@ -19,48 +19,103 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+r"""The Student-t Bayesian VAR: fat tails as a model, not a casualty.
 
-"""The BVAR with stochastic volatility: constant transmission, drifting shocks.
+Macroeconomic samples carry a handful of dates -- 2008, 2020 -- that a
+Gaussian VAR can only accommodate by inflating the covariance for every
+other date, which is how a few observations end up owning the error bands.
+Student-t innovations (Chiu, Mumtaz and Pinter, 2017) treat those dates as
+what they are: draws from the same system's fatter tail. The model is
 
-Half of what changed in postwar macroeconomic data is the size of the shocks
--- the Great Moderation, its end, the pandemic -- and a homoskedastic VAR
-answers questions about that period with a covariance averaged across
-regimes nobody believes were the same. This model (Carriero, Clark &
-Marcellino; Clark 2011) is the workhorse fix: coefficients constant,
-covariance drifting every period through the triangular factorization
-``Sigma_t = A^{-1} H_t A^{-T}`` with a constant unit-lower ``A`` and
-random-walk log variances -- the Primiceri machinery with the coefficient
-drift switched off, which is also exactly how it is assembled here, from the
-same Kim-Shephard-Chib block and simulation smoother the TVP family runs on.
+.. math::
 
-Two implementation commitments matter. The coefficient draw is the *joint*
-generalized-least-squares conditional across all equations -- exact by
-construction, sidestepping the equation-at-a-time factorization whose
-original ordering required the 2022 corrigendum -- and because that draw
-handles any diagonal prior variance, Litterman's cross-equation weight is
-admissible again: conjugacy is not needed where nothing is being solved in
-closed form. Dummy-observation priors are refused, with the reason stated:
-an artificial row has no date, so under time-varying volatility it has no
-covariance to be weighted by.
+   y_t = c + \sum_{i=1}^{p} A_i y_{t-i} + u_t,
+   \qquad u_t \sim t_\nu(0, \Sigma),
+   \qquad
+   u_t \mid w_t \sim N(0, \Sigma / w_t),\quad
+   w_t \sim \mathrm{Gamma}(\nu/2, \nu/2),
 
-The covariance the shared surface consumes -- orthogonalized responses, the
-predictive -- is the *end-of-sample* one, the covariance relevant for what
-comes next; the predictive then propagates the log-volatility random walk
-forward, so forecast bands widen with horizon the way drifting volatility
-says they must. The full paths live in ``h_draws`` and
-:meth:`BVARSVResult.volatility_path`.
+and the second line is how it is estimated (Geweke, 1993): each date
+carries a latent precision weight, and conditional on the weights the
+model is exactly the conjugate Normal-inverse-Wishart VAR on rows rescaled
+by :math:`\sqrt{w_t}`. The Gibbs sampler therefore alternates three exact
+conditionals -- :math:`(B, \Sigma)` from the weighted conjugate update,
+the weights from :math:`\mathrm{Gamma}\bigl((\nu + k)/2,
+(\nu + u_t' \Sigma^{-1} u_t)/2\bigr)`, and :math:`\nu` from its
+conditional on a fixed grid -- and inherits the conjugate model's prior
+machinery unchanged, dummy observations included. The reported
+:math:`\Sigma` is the t *scale*; the innovation covariance is
+:math:`\Sigma\,\nu/(\nu - 2)`.
+
+Two commitments shape the surface. First, the tail index can be stated or
+learned, and when learned it is learned exactly: ``nu`` is drawn from its
+conditional evaluated on the grid ``2 .. 29, 30, 35, 40, 50, 60, 80, 100``
+under a prior uniform over grid points, a step with no tuning parameter
+and no acceptance rate. The grid is coarse above thirty because the t and
+the Gaussian are indistinguishable there; on data whose innovations are
+Gaussian the posterior settles in the teens and twenties at macro sample
+sizes, which is the model's way of saying the tails were not needed, and
+only a long Gaussian sample pushes it to the grid's top. Second, the
+latent weights are reported, as :attr:`StudentBVARResult.weight_mean` -- a
+per-date outlier map, and often the most readable diagnostic the fit
+produces: the dates the t distribution absorbed are exactly the dates with
+small weights, and :meth:`StudentBVARResult.outlier_dates` lists them.
+
+Deliberately absent: the marginal likelihood. The t likelihood breaks the
+conjugacy that made the Gaussian model's evidence a closed form, and a
+simulated stand-in would not deserve the name; rank tail specifications
+by predictive performance instead.
+
+Layout. :class:`StudentBVAR` defaults the prior to
+:class:`~cultivars.bayes.priors.NormalInverseWishartPrior` and validates
+on ``_StudentBayesianVectorAutoRegressionModel`` in ``_internals``, which
+extends the conjugate ``_BayesianVectorAutoRegressionModel``; its
+``_fit_student`` runs the three-block sampler, drawing ``(B, Sigma)``
+through ``_draw_conjugate`` on the reweighted rows and ``nu`` through
+``_draw_degrees`` on ``_STUDENT_DF_GRID`` from ``_core``, and packs a
+``_VectorStudentFit``. :class:`StudentBVARResult` extends
+``_VectorPosteriorDrawsResult`` -- credible intervals, impulse responses
+with posterior bands, the predictive, the stability share, the chain
+diagnostics -- and overrides its three noise hooks so that the
+predictive, :meth:`~StudentBVARResult.simulate` and
+:meth:`~StudentBVARResult.posterior_replications` all draw t innovations.
+The Gaussian conjugate model is
+:mod:`~cultivars.multivariate.large_dim.bayesian`; the other account of
+fat marginal tails, through time-varying volatility, is
+:mod:`~cultivars.multivariate.large_dim.volatility`.
 
 References:
-    Carriero, A., Clark, T. E., & Marcellino, M. (2019). Large Bayesian
-        vector autoregressions with stochastic volatility and non-conjugate
-        priors. *Journal of Econometrics*, 212(1), 137-154 (and corrigendum,
-        2022).
-    Clark, T. E. (2011). Real-time density forecasts from Bayesian vector
-        autoregressions with stochastic volatility. *Journal of Business &
-        Economic Statistics*, 29(3), 327-341.
-    Kim, S., Shephard, N., & Chib, S. (1998). Stochastic volatility:
-        Likelihood inference and comparison with ARCH models. *Review of
-        Economic Studies*, 65(3), 361-393.
+    Chiu, C.-W. J., Mumtaz, H., & Pinter, G. (2017). Forecasting with VAR
+    models: Fat tails and stochastic volatility. *International Journal
+    of Forecasting*, 33(4), 1124-1143.
+
+    Geweke, J. (1993). Bayesian treatment of the independent Student-t
+    linear model. *Journal of Applied Econometrics*, 8(S1), S19-S40.
+
+Example:
+    A bivariate VAR(1) with :math:`t_4` innovations next to one with
+    Gaussian innovations: the tail index separates them, and the
+    weight map on the fat-tailed sample points at its largest residuals:
+
+    >>> import numpy as np
+    >>> rng = np.random.default_rng(0)
+    >>> fat, normal = np.zeros((200, 2)), np.zeros((200, 2))
+    >>> for t in range(1, 200):
+    ...     w = rng.gamma(2.0, 0.5)
+    ...     fat[t] = 0.5 * fat[t - 1] + rng.standard_normal(2) / np.sqrt(w)
+    ...     normal[t] = 0.5 * normal[t - 1] + rng.standard_normal(2)
+    >>> heavy = StudentBVAR(fat, order=1).fit(n_draws=400, n_burn=200, seed=0)
+    >>> light = StudentBVAR(normal, order=1).fit(n_draws=400, n_burn=200, seed=0)
+    >>> bool(heavy.df < 10.0 < light.df)
+    True
+    >>> bool(heavy.outlier_dates().size > light.outlier_dates().size)
+    True
+    >>> worst = int(np.argmax(np.abs(heavy.resid).max(axis=1)))
+    >>> bool(worst in heavy.outlier_dates())
+    True
+    >>> ratio = heavy.innovation_covariance / heavy.sigma_u
+    >>> bool(np.allclose(ratio, heavy.df / (heavy.df - 2.0)))
+    True
 """
 
 from __future__ import annotations
