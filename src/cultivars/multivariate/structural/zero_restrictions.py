@@ -19,30 +19,110 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+r"""Zero-restriction identification: triangularity on impact or in the long run.
 
-"""Zero-restriction identification: triangularity on impact or in the long run.
+A reduced-form innovation covariance admits infinitely many factorizations
+:math:`\Sigma_u = B B'`, one per orthogonal rotation of any of them, and
+every one tells a different economic story. The schemes here choose by the
+oldest device in the literature: zeros, enough of them to leave one
+factorization standing. Four arrangements are offered. :class:`RecursiveSVAR`
+puts a triangle on *impact* -- a declared causal ordering in which each
+variable responds contemporaneously only to shocks at or before its own
+position, Sims (1980), the Cholesky factor in closed form.
+:class:`LongRunSVAR` puts the triangle at the *infinite horizon* -- an
+ordering of permanence in which each shock has no cumulated effect on the
+variables before its position, Blanchard-Quah (1989) -- as the Cholesky
+factor of :math:`F \Sigma_u F'` mapped back through the long-run matrix
+:math:`F = A(1)^{-1} M(1)`. :class:`ShortRunSVAR` is the general AB model,
+:math:`A u_t = B \varepsilon_t` with zeros anywhere in either matrix,
+estimated by maximum likelihood and tested for over-identification when
+the zeros exceed :math:`k(k+1)/2 - k(k-1)/2` worth of freedom
+(Amisano-Giannini 1997). :class:`MixedSVAR` takes :math:`k(k-1)/2` zeros
+split between the impact matrix and the long-run matrix and solves for
+the rotation of the Cholesky factor that honours all of them, Galí
+(1999). Every scheme returns the same :class:`SVARResult`: impact columns,
+structural impulse responses, variance shares, recovered shocks and
+historical decompositions, computed per identified column.
 
-A reduced-form innovation covariance admits infinitely many factorizations,
-and every one of them tells a different economic story. The two models here
-choose by the oldest device in the literature: zeros arranged as a triangle,
-imposed at one of two horizons. :class:`RecursiveSVAR` puts the triangle on
-*impact* -- a declared causal ordering in which each variable responds
-contemporaneously only to shocks at or before its own position, Sims (1980).
-:class:`LongRunSVAR` puts it at the *infinite horizon* -- an ordering of
-permanence in which each shock has no cumulated effect on the variables before
-its position, Blanchard-Quah (1989).
+Two commitments shape the surface. First, the restriction is an argument,
+never a default. Each model constructs from a fitted closed reduced-form
+result rather than from data: the reduced form supplies every estimable
+quantity, and what the model adds is exactly the declared zeros, which the
+result restates as a sentence in its summary -- the ordering, the cell
+pattern, the horizons -- so that the identifying assumption travels with
+the numbers it produced. Second, the covariance is reproduced or the
+scheme refuses. A recursive or long-run factor reproduces :math:`\Sigma_u`
+by construction; the long-run one is checked anyway, because a nearly
+nonstationary system makes :math:`F` ill-conditioned enough to break it; a
+just-identified AB pattern that cannot reproduce it is the rank condition
+failing and is reported as that, not as an estimate; a mixed pattern no
+rotation can satisfy is refused with the best violation. Where the zeros
+over-identify, the likelihood-ratio statistic against the unrestricted
+covariance is the data's verdict and is printed; where they exactly
+identify, the summary says the data cannot contradict them.
 
-Both are complete identifications computed in closed form, and both construct
-from a fitted closed reduced-form result rather than from data: the reduced
-form supplies every estimable quantity, and what these models add is exactly
-the restriction, declared as an argument someone chose.
+Layout. All four models are ``_IdentificationModel`` subclasses from
+``_internals``; orderings are validated by ``_validate_ordering`` and cell
+patterns by ``_validate_impact_pattern``, both in ``_core``; the factor
+comes from ``_lower_cholesky`` and the long-run matrix from
+``_long_run_matrix``, which refuses a unit root; the AB likelihood is
+``_ShortRunObjective`` under ``_maximize_likelihood`` and the mixed
+rotation is ``_MixedHorizonObjective`` under ``_solve``, all in
+``_internals``. :class:`SVARResult` renders through the shared
+``_UNIT_SHOCK_NOTE`` and, when columns are missing, the
+``_PARTIAL_IDENTIFICATION_NOTE``; it is also the record returned by the
+partial and statistical schemes in
+:mod:`~cultivars.multivariate.structural.external_instruments`,
+:mod:`~cultivars.multivariate.structural.heteroskedacity` and
+:mod:`~cultivars.multivariate.structural.non_gaussian`, and the point
+surface :mod:`~cultivars.multivariate.structural.stochastic_volatility`
+lands on. Restrictions that do not point-identify belong to
+:mod:`~cultivars.multivariate.structural.sign_restrictions` and
+:mod:`~cultivars.multivariate.structural.set_identification`.
 
 References:
-    Sims, C. A. (1980). Macroeconomics and reality. *Econometrica*, 48(1).
+    Sims, C. A. (1980). Macroeconomics and reality. *Econometrica*, 48(1),
+    1-48.
+
     Blanchard, O. J., & Quah, D. (1989). The dynamic effects of aggregate
-        demand and supply disturbances. *American Economic Review*, 79(4).
-    Kilian, L., & Lutkepohl, H. (2017). *Structural Vector Autoregressive
-        Analysis*. Cambridge University Press.
+    demand and supply disturbances. *American Economic Review*, 79(4),
+    655-673.
+
+    Amisano, G., & Giannini, C. (1997). *Topics in Structural VAR
+    Econometrics* (2nd ed.). Springer.
+
+    Galí, J. (1999). Technology, employment, and the business cycle: Do
+    technology shocks explain aggregate fluctuations? *American Economic
+    Review*, 89(1), 249-271.
+
+    Kilian, L., & Lütkepohl, H. (2017). *Structural Vector Autoregressive
+    Analysis*. Cambridge University Press.
+
+Example:
+    The same reduced form under the impact triangle and the long-run
+    triangle. Both reproduce the innovation covariance; they disagree on
+    the impact matrix, and the disagreement is the identifying assumption:
+
+    >>> import numpy as np
+    >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+    >>> rng = np.random.default_rng(0)
+    >>> A = np.array([[0.5, 0.1], [0.0, 0.4]])
+    >>> B = (np.eye(2) - A) @ np.array([[1.0, 0.0], [0.5, 1.0]])
+    >>> eps = rng.standard_normal((602, 2))
+    >>> y = np.zeros((602, 2))
+    >>> for t in range(1, 602):
+    ...     y[t] = A @ y[t - 1] + B @ eps[t]
+    >>> res = VAR(y, order=1, names=("dy", "u")).fit()
+    >>> recursive = RecursiveSVAR(res).identify()
+    >>> long_run = LongRunSVAR(res).identify()
+    >>> recursive.impact.round(2).tolist(), long_run.impact.round(2).tolist()
+    ([[0.45, 0.0], [0.17, 0.64]], [[0.44, -0.11], [0.31, 0.58]])
+    >>> covariances = [s.impact @ s.impact.T for s in (recursive, long_run)]
+    >>> bool(np.allclose(covariances[0], res.sigma_u)), bool(np.allclose(*covariances))
+    (True, True)
+    >>> permanent = [bool(abs(s.long_run_impact[0, 1]) < 1e-10) for s in (recursive, long_run)]
+    >>> permanent
+    [False, True]
 """
 
 from __future__ import annotations
@@ -300,18 +380,28 @@ class RecursiveSVAR(_IdentificationModel[SVARResult]):
 
 
 class LongRunSVAR(_IdentificationModel[SVARResult]):
-    """Long-run recursive identification, Blanchard-Quah (1989).
+    r"""Long-run recursive identification, Blanchard-Quah (1989).
 
     The restriction lives at the infinite horizon: the *cumulated* response
     matrix is lower triangular in the declared ordering, so the first shock is
     the only one with a permanent effect on the first variable, and so on. In
     the bivariate Blanchard-Quah economy -- output growth first, unemployment
     second -- the first shock is supply, the only one that moves the level of
-    output forever, and demand is whatever remains.
+    output forever, and demand is whatever remains. Computed in closed form:
+    with :math:`F = A(1)^{-1} M(1)` the long-run impact of the innovations,
 
-    Computed in closed form: with ``F`` the long-run impact of the
-    innovations, the lower Cholesky factor of ``F Sigma F'`` is the long-run
-    impact of the shocks, and the impact matrix is ``F^{-1}`` times it.
+    .. math::
+
+       F \Sigma_u F' = \Theta \Theta', \qquad
+       \Theta \text{ lower triangular}, \qquad
+       B = F^{-1} \Theta,
+
+    the lower Cholesky factor of the long-run covariance is the long-run
+    impact of the shocks, and the impact matrix is :math:`F^{-1}` times it.
+    The system must be stationary for :math:`F` to exist, and nearly
+    nonstationary systems make it ill-conditioned: the result is checked
+    against the innovation covariance and refused when it fails to
+    reproduce it.
 
     Args:
         result: The fitted closed, stationary reduced-form result to identify.
@@ -322,19 +412,80 @@ class LongRunSVAR(_IdentificationModel[SVARResult]):
         SpecificationError: If the result is not a closed system, is not
             stationary, or the ordering is not a permutation of its names.
 
+    Attributes:
+        _source: The closed reduced-form result being identified.
+        _perm: The ordering as column indices into the variable names.
+
+    See Also:
+        * :class:`SVARResult` -- the complete result returned.
+        * :class:`RecursiveSVAR` -- the same triangle on the impact matrix.
+        * :class:`MixedSVAR` -- zeros split between the two horizons.
+
+    References:
+        Blanchard, O. J., & Quah, D. (1989). The dynamic effects of
+        aggregate demand and supply disturbances. *American Economic
+        Review*, 79(4), 655-673.
+
     Example:
+        A bivariate system built so that the long-run impact matrix of the
+        structural shocks is lower triangular: only the first shock moves
+        the first variable's level permanently. The long-run factorization
+        recovers the impact matrix -- which is not triangular -- and the
+        first shock series:
+
+        >>> import numpy as np
+        >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
         >>> rng = np.random.default_rng(0)
-        >>> from cultivars.multivariate.reduced_form import VAR
-        >>> y = np.diff(rng.standard_normal((121, 2)).cumsum(axis=0) * 0.1, axis=0)
-        >>> svar = LongRunSVAR(VAR(y, order=1).fit()).identify()
-        >>> bool(abs(svar.long_run_impact[0, 1]) < 1e-10)
+        >>> A = np.array([[0.5, 0.1], [0.0, 0.4]])
+        >>> F = np.array([[1.0, 0.0], [0.5, 1.0]])
+        >>> B = (np.eye(2) - A) @ F
+        >>> eps = rng.standard_normal((602, 2))
+        >>> y = np.zeros((602, 2))
+        >>> for t in range(1, 602):
+        ...     y[t] = A @ y[t - 1] + B @ eps[t]
+        >>> res = VAR(y, order=1, names=("dy", "u")).fit()
+        >>> svar = LongRunSVAR(res).identify()
+        >>> svar.scheme, svar.shock_names, svar.is_complete
+        ('long-run', ('dy', 'u'), True)
+        >>> svar.long_run_impact.round(2).tolist()
+        [[1.06, -0.0], [0.67, 0.94]]
+        >>> svar.impact.round(2).tolist(), B.round(2).tolist()
+        ([[0.44, -0.11], [0.31, 0.58]], [[0.45, -0.1], [0.3, 0.6]])
+        >>> bool(np.corrcoef(svar.structural_shocks()[:, 0], eps[1:, 0])[0, 1] > 0.95)
         True
     """
 
     __slots__ = ("_perm",)
 
     def __init__(self, result: ClosedSystemResult, *, order: Sequence[str] | None = None) -> None:
-        """Validate the source system, its stationarity, and the ordering."""
+        """Validate the source system, its stationarity, and the ordering.
+
+        Args:
+            result: The fitted closed reduced-form result to identify.
+            order: A permutation of the variable names, or ``None``.
+
+        Raises:
+            SpecificationError: If the result is not a closed system, its
+                companion is explosive or has a unit root, or ``order`` is
+                not a permutation of its variable names.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> rng = np.random.default_rng(0)
+            >>> res = VAR(rng.standard_normal((121, 2)), order=1, names=("dy", "u")).fit()
+            >>> LongRunSVAR(res, order=("u", "dy"))._perm
+            (1, 0)
+            >>> x = np.zeros((300, 2))
+            >>> for t in range(1, 300):
+            ...     x[t] = 1.05 * x[t - 1] + rng.standard_normal(2)
+            >>> explosive = VAR(x, order=1).fit()
+            >>> explosive.is_stable
+            False
+            >>> LongRunSVAR(explosive)  # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+            cultivars.exceptions.SpecificationError: long-run identification needs a stationary ...
+        """
         super().__init__(result)
         if getattr(result, "is_stable", True) is False:
             raise SpecificationError(
@@ -346,7 +497,16 @@ class LongRunSVAR(_IdentificationModel[SVARResult]):
 
     @property
     def ordering(self) -> tuple[str, ...]:
-        """The declared ordering of permanence."""
+        """The declared ordering of permanence, most permanent first.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> rng = np.random.default_rng(0)
+            >>> res = VAR(rng.standard_normal((121, 2)), order=1, names=("dy", "u")).fit()
+            >>> LongRunSVAR(res).ordering, LongRunSVAR(res, order=("u", "dy")).ordering
+            (('dy', 'u'), ('u', 'dy'))
+        """
         return tuple(self.names[i] for i in self._perm)
 
     def identify(self) -> SVARResult:
@@ -362,6 +522,26 @@ class LongRunSVAR(_IdentificationModel[SVARResult]):
             NumericalError: If the recovered impact matrix fails to reproduce
                 the innovation covariance, which indicates the long-run matrix
                 is too ill-conditioned to identify through.
+
+        Example:
+            Either ordering reproduces the innovation covariance; the
+            long-run matrix is triangular in the declared one:
+
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> rng = np.random.default_rng(0)
+            >>> y = np.zeros((402, 2))
+            >>> for t in range(1, 402):
+            ...     y[t] = 0.4 * y[t - 1] + rng.standard_normal(2)
+            >>> res = VAR(y, order=1, names=("dy", "u")).fit()
+            >>> first = LongRunSVAR(res).identify()
+            >>> second = LongRunSVAR(res, order=("u", "dy")).identify()
+            >>> bool(abs(first.long_run_impact[0, 1]) < 1e-10)
+            True
+            >>> bool(abs(second.long_run_impact[1, 1]) < 1e-10), second.shock_names
+            (True, ('u', 'dy'))
+            >>> bool(np.allclose(second.impact @ second.impact.T, res.sigma_u))
+            True
         """
         perm = self._perm
         sigma = np.asarray(self.source.sigma_u, dtype=np.float64)
@@ -397,18 +577,24 @@ class LongRunSVAR(_IdentificationModel[SVARResult]):
 
 
 class ShortRunSVAR(_IdentificationModel[SVARResult]):
-    """General short-run zero restrictions: the AB model, Amisano-Giannini (1997).
+    r"""General short-run zero restrictions: the AB model, Amisano-Giannini (1997).
 
-    ``A u_t = B e_t`` with unit-variance shocks: ``A`` carries the
-    contemporaneous relations among the innovations, ``B`` the loadings of the
-    shocks, and the impact matrix is ``A^{-1} B``. Restrictions are declared
-    cell by cell -- a finite entry fixes a coefficient, ``nan`` frees it --
-    which is what lifts the scheme past :class:`RecursiveSVAR`: zeros can sit
-    anywhere, not only above a diagonal, at the price of a likelihood search
-    where the triangle had a closed form.
+    .. math::
+
+       A u_t = B \varepsilon_t, \qquad
+       \mathbb{E}\varepsilon_t \varepsilon_t' = I, \qquad
+       \Sigma_u = A^{-1} B B' A^{-\top},
+
+    with :math:`A` carrying the contemporaneous relations among the
+    innovations, :math:`B` the loadings of the shocks, and the impact
+    matrix :math:`A^{-1} B`. Restrictions are declared cell by cell -- a
+    finite entry fixes a coefficient, ``nan`` frees it -- which is what
+    lifts the scheme past :class:`RecursiveSVAR`: zeros can sit anywhere,
+    not only above a diagonal, at the price of a likelihood search where
+    the triangle had a closed form.
 
     The order condition is enforced at construction: the covariance supplies
-    ``k (k + 1) / 2`` equations, so at most that many coefficients can be
+    :math:`k(k+1)/2` equations, so at most that many coefficients can be
     free. Fewer means over-identification, and the likelihood-ratio statistic
     against the unrestricted covariance -- the classical over-identification
     test -- is computed and reported on the result. The rank condition has no
@@ -435,15 +621,57 @@ class ShortRunSVAR(_IdentificationModel[SVARResult]):
             ``a`` is free, no coefficient is free, or the order condition
             fails.
 
+    Attributes:
+        _source: The closed reduced-form result being identified.
+        _a_base: The fixed values of ``A`` with zeros in the free cells.
+        _a_free: Row-major coordinates of the free cells of ``A``.
+        _b_base: The fixed values of ``B`` with zeros in the free cells.
+        _b_free: Row-major coordinates of the free cells of ``B``.
+        _overid_df: Restrictions beyond exact identification.
+        _labels: The shock labels.
+
+    See Also:
+        * :class:`SVARResult` -- the complete result returned, with the
+          over-identification test in its diagnostics.
+        * :class:`RecursiveSVAR` -- the triangular special case, in closed
+          form.
+        * :class:`MixedSVAR` -- when some zeros belong at the long run.
+
+    References:
+        Amisano, G., & Giannini, C. (1997). *Topics in Structural VAR
+        Econometrics* (2nd ed.). Springer.
+
+        Bernanke, B. S. (1986). Alternative explanations of the
+        money-income correlation. *Carnegie-Rochester Conference Series on
+        Public Policy*, 25, 49-99.
+
     Example:
+        A three-variable B-model. A lower-triangular pattern is exactly
+        identified and reproduces the recursive factorization; fixing one
+        more cell over-identifies the structure, and the likelihood-ratio
+        test says whether the data object:
+
+        >>> import numpy as np
+        >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
         >>> rng = np.random.default_rng(0)
-        >>> from cultivars.multivariate.reduced_form import VAR
-        >>> y = np.diff(rng.standard_normal((201, 2)).cumsum(axis=0) * 0.1, axis=0)
-        >>> res = VAR(y, order=1).fit()
-        >>> pattern = np.array([[np.nan, 0.0], [np.nan, np.nan]])
-        >>> svar = ShortRunSVAR(res, b=pattern).identify()
-        >>> svar.impact.shape
-        (2, 2)
+        >>> B = np.array([[0.45, -0.1, 0.0], [0.27, 0.58, -0.1], [0.11, 0.14, 0.7]])
+        >>> eps = rng.standard_normal((802, 3))
+        >>> y = np.zeros((802, 3))
+        >>> for t in range(1, 802):
+        ...     y[t] = 0.4 * y[t - 1] + B @ eps[t]
+        >>> res = VAR(y, order=1, names=("prod", "hours", "rate")).fit()
+        >>> nan = np.nan
+        >>> exact = ShortRunSVAR(res, b=[[nan, 0, 0], [nan, nan, 0], [nan, nan, nan]])
+        >>> exact.n_free, exact.overidentifying_restrictions
+        (6, 0)
+        >>> svar = exact.identify()
+        >>> dict(svar.diagnostics)["Identification"], svar.scheme
+        ('exact', 'short-run')
+        >>> bool(np.allclose(svar.impact, RecursiveSVAR(res).identify().impact))
+        True
+        >>> over = ShortRunSVAR(res, b=[[nan, 0, 0], [nan, nan, 0], [nan, 0, nan]]).identify()
+        >>> {key: value for key, value in over.diagnostics if key.startswith("Over-ID")}
+        {'Over-ID restrictions': '1', 'Over-ID LR': '1.251', 'Over-ID p-value': '0.2634'}
     """
 
     __slots__ = ("_a_base", "_a_free", "_b_base", "_b_free", "_labels", "_overid_df")
@@ -456,7 +684,46 @@ class ShortRunSVAR(_IdentificationModel[SVARResult]):
         b: npt.ArrayLike | None = None,
         shock_names: Sequence[str] | None = None,
     ) -> None:
-        """Validate the source system, the patterns, and the order condition."""
+        """Validate the source system, the patterns, and the order condition.
+
+        Args:
+            result: The fitted closed reduced-form result to identify.
+            a: The ``(k, k)`` pattern on ``A``, or ``None`` for the identity.
+            b: The ``(k, k)`` pattern on ``B``, or ``None`` for a free
+                diagonal with zeros elsewhere.
+            shock_names: ``k`` unique labels, or ``None`` for the variable
+                names.
+
+        Raises:
+            SpecificationError: If the result is not a closed system, both
+                patterns are ``None``, a pattern has the wrong shape or an
+                infinity, a diagonal cell of ``a`` is free, every cell is
+                fixed, more cells are free than ``k(k+1)/2``, or the labels
+                are not ``k`` unique strings.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> rng = np.random.default_rng(0)
+            >>> res = VAR(rng.standard_normal((121, 2)), order=1, names=("r", "x")).fit()
+            >>> nan = np.nan
+            >>> model = ShortRunSVAR(res, a=[[1.0, 0.0], [nan, 1.0]])
+            >>> model._a_free, model._b_free, model._overid_df, model._labels
+            (((1, 0),), ((0, 0), (1, 1)), 0, ('r', 'x'))
+            >>> ShortRunSVAR(res)  # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+            cultivars.exceptions.SpecificationError: declare at least one pattern: with neither ...
+            >>> ShortRunSVAR(res, a=[[nan, 0.0], [0.0, 1.0]])  # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+            cultivars.exceptions.SpecificationError: the diagonal of a must be fixed ...
+            >>> ShortRunSVAR(res, b=[[1.0, 0.0], [0.0, 1.0]])  # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+            cultivars.exceptions.SpecificationError: every coefficient is fixed; there is ...
+            >>> ShortRunSVAR(res, a=[[1.0, nan], [nan, 1.0]], b=[[nan, nan], [nan, nan]])
+            ...     # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+            cultivars.exceptions.SpecificationError: the order condition fails: 6 free ...
+        """
         super().__init__(result)
         k = self.k_endog
         if a is None and b is None:
@@ -502,12 +769,33 @@ class ShortRunSVAR(_IdentificationModel[SVARResult]):
 
     @property
     def n_free(self) -> int:
-        """Free coefficients across both matrices."""
+        """Free coefficients across both matrices.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> rng = np.random.default_rng(0)
+            >>> res = VAR(rng.standard_normal((121, 3)), order=1).fit()
+            >>> ShortRunSVAR(res, a=[[1, 0, 0], [np.nan, 1, 0], [np.nan, np.nan, 1]]).n_free
+            6
+        """
         return len(self._a_free) + len(self._b_free)
 
     @property
     def overidentifying_restrictions(self) -> int:
-        """Restrictions beyond the count needed for exact identification."""
+        """Restrictions beyond the count needed for exact identification.
+
+        ``k(k+1)/2`` minus the free coefficients; zero means exactly
+        identified and no test.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> rng = np.random.default_rng(0)
+            >>> res = VAR(rng.standard_normal((121, 3)), order=1).fit()
+            >>> ShortRunSVAR(res, a=np.eye(3)).overidentifying_restrictions
+            3
+        """
         return self._overid_df
 
     def identify(self) -> SVARResult:
@@ -516,7 +804,8 @@ class ShortRunSVAR(_IdentificationModel[SVARResult]):
         The likelihood is evaluated at the result's reported innovation
         covariance, so a just-identified structure reproduces exactly the
         matrix every other scheme factors and the whole result surface stays
-        internally consistent.
+        internally consistent. Each impact column is signed so its largest
+        entry is positive.
 
         Returns:
             The complete structural result, with the over-identification
@@ -528,6 +817,28 @@ class ShortRunSVAR(_IdentificationModel[SVARResult]):
                 the innovation covariance, which is the rank condition failing
                 at this pattern -- the restrictions are arranged so that some
                 free coefficient is not pinned down.
+
+        Example:
+            The default B-model -- uncorrelated structural shocks loading
+            one per equation -- is over-identified by ``k(k-1)/2`` zeros,
+            and on correlated innovations the test rejects it:
+
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> rng = np.random.default_rng(0)
+            >>> B = np.array([[1.0, 0.0], [0.5, 1.0]])
+            >>> y = np.zeros((402, 2))
+            >>> for t in range(1, 402):
+            ...     y[t] = 0.4 * y[t - 1] + B @ rng.standard_normal(2)
+            >>> res = VAR(y, order=1, names=("r", "x")).fit()
+            >>> diagonal = ShortRunSVAR(res, b=[[np.nan, 0.0], [0.0, np.nan]]).identify()
+            >>> report = dict(diagonal.diagnostics)
+            >>> report["Over-ID restrictions"], float(report["Over-ID p-value"]) < 0.01
+            ('1', True)
+            >>> bool(np.allclose(diagonal.impact, np.diag(np.sqrt(np.diag(res.sigma_u)))))
+            True
+            >>> diagonal.restriction[:41]
+            'AB model with 4 fixed cells in the contem'
         """
         k = self.k_endog
         sigma = np.asarray(self.source.sigma_u, dtype=np.float64)
@@ -592,22 +903,29 @@ class ShortRunSVAR(_IdentificationModel[SVARResult]):
 
 
 class MixedSVAR(_IdentificationModel[SVARResult]):
-    """Zero restrictions split across impact and the long run, Gali (1999).
+    r"""Zero restrictions split across impact and the long run, Galí (1999).
 
     The scheme that needs both horizons at once: a technology shock is the
     only one moving productivity forever -- a long-run zero -- while a policy
     shock is barred from moving output on impact -- a short-run zero. Neither
     :class:`ShortRunSVAR` nor :class:`LongRunSVAR` can say both; this model
     takes a pattern for each matrix and finds the one factorization
-    satisfying every declared cell.
+    satisfying every declared cell. The search runs where the problem
+    lives, over rotations of the Cholesky factor,
 
-    The search runs where the problem lives: over rotations of the Cholesky
-    factor, so the innovation covariance is reproduced identically at every
+    .. math::
+
+       B = L Q, \qquad Q' Q = I, \qquad
+       B_{ij} = c_{ij} \;\text{(impact cells)}, \qquad
+       (F B)_{ij} = d_{ij} \;\text{(long-run cells)},
+
+    so the innovation covariance is reproduced identically at every
     candidate and the restrictions are the only thing being solved for. A
-    rotation has exactly ``k (k - 1) / 2`` degrees of freedom, which is why
-    exactly that many restrictions are required -- fewer is an under-
-    identified pattern, more is an over-identified one whose restricted
-    covariance estimation this model deliberately does not attempt.
+    rotation has exactly :math:`k(k-1)/2` degrees of freedom, which is why
+    exactly that many restrictions are required -- fewer is an
+    under-identified pattern, more is an over-identified one whose
+    restricted covariance estimation this model deliberately does not
+    attempt.
 
     Args:
         result: The fitted closed, stationary reduced-form result to identify.
@@ -626,14 +944,58 @@ class MixedSVAR(_IdentificationModel[SVARResult]):
             malformed, or the restriction count differs from
             ``k (k - 1) / 2``.
 
+    Attributes:
+        _source: The closed reduced-form result being identified.
+        _impact_cells: The fixed impact cells as ``(row, column, value)``.
+        _long_cells: The fixed long-run cells as ``(row, column, value)``.
+        _labels: The shock labels.
+
+    See Also:
+        * :class:`SVARResult` -- the complete result returned.
+        * :class:`LongRunSVAR` -- all zeros at the long run, in closed form.
+        * :class:`ShortRunSVAR` -- all zeros on impact, with
+          over-identification allowed.
+
+    References:
+        Galí, J. (1999). Technology, employment, and the business cycle: Do
+        technology shocks explain aggregate fluctuations? *American
+        Economic Review*, 89(1), 249-271.
+
     Example:
+        Three variables, three restrictions: the technology shock alone
+        moves productivity in the long run (two long-run zeros) and the
+        policy shock cannot move productivity on impact (one short-run
+        zero). The system is built with exactly those properties, and the
+        rotation recovers the impact matrix and the shocks:
+
+        >>> import numpy as np
+        >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
         >>> rng = np.random.default_rng(0)
-        >>> from cultivars.multivariate.reduced_form import VAR
-        >>> y = np.diff(rng.standard_normal((201, 2)).cumsum(axis=0) * 0.1, axis=0)
-        >>> res = VAR(y, order=1).fit()
-        >>> lr = np.array([[np.nan, 0.0], [np.nan, np.nan]])
-        >>> svar = MixedSVAR(res, long_run=lr).identify()
-        >>> bool(abs(svar.long_run_impact[0, 1]) < 1e-8)
+        >>> A = np.array([[0.5, 0.1, 0.0], [0.0, 0.4, 0.1], [0.1, 0.0, 0.3]])
+        >>> F = np.array([[1.0, 0.0, 0.0], [0.5, 1.0, 0.0], [0.3, 0.2, 1.0]])
+        >>> B = (np.eye(3) - A) @ F
+        >>> eps = rng.standard_normal((802, 3))
+        >>> y = np.zeros((802, 3))
+        >>> for t in range(1, 802):
+        ...     y[t] = A @ y[t - 1] + B @ eps[t]
+        >>> res = VAR(y, order=1, names=("prod", "hours", "rate")).fit()
+        >>> nan = np.nan
+        >>> model = MixedSVAR(
+        ...     res,
+        ...     impact=[[nan, nan, 0.0], [nan, nan, nan], [nan, nan, nan]],
+        ...     long_run=[[nan, 0.0, 0.0], [nan, nan, nan], [nan, nan, nan]],
+        ...     shock_names=("technology", "demand", "policy"),
+        ... )
+        >>> model.n_restrictions
+        3
+        >>> svar = model.identify()
+        >>> svar.scheme, svar.shock_names, dict(svar.diagnostics)["Identification"]
+        ('mixed', ('technology', 'demand', 'policy'), 'exact')
+        >>> svar.impact.round(2).tolist()
+        [[0.45, -0.09, 0.0], [0.26, 0.57, -0.05], [0.08, 0.07, 0.73]]
+        >>> svar.long_run_impact[0].round(2).tolist()
+        [1.02, 0.0, -0.0]
+        >>> bool(np.corrcoef(svar.structural_shocks()[:, 0], eps[1:, 0])[0, 1] > 0.95)
         True
     """
 
@@ -647,7 +1009,40 @@ class MixedSVAR(_IdentificationModel[SVARResult]):
         long_run: npt.ArrayLike | None = None,
         shock_names: Sequence[str] | None = None,
     ) -> None:
-        """Validate the source system, both patterns, and the order condition."""
+        """Validate the source system, both patterns, and the order condition.
+
+        Args:
+            result: The fitted closed reduced-form result to identify.
+            impact: The ``(k, k)`` impact pattern, or ``None``.
+            long_run: The ``(k, k)`` long-run pattern; required, with at
+                least one fixed cell.
+            shock_names: ``k`` unique labels, or ``None`` for the variable
+                names.
+
+        Raises:
+            SpecificationError: If the result is not a closed system, its
+                companion is explosive or has a unit root, ``long_run`` is
+                omitted or fixes nothing, a pattern has the wrong shape or
+                an infinity, the fixed cells do not number exactly
+                ``k(k-1)/2``, or the labels are not ``k`` unique strings.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> rng = np.random.default_rng(0)
+            >>> res = VAR(rng.standard_normal((121, 2)), order=1, names=("dy", "u")).fit()
+            >>> nan = np.nan
+            >>> model = MixedSVAR(res, long_run=[[nan, 0.0], [nan, nan]])
+            >>> model._impact_cells, model._long_cells, model._labels
+            ((), ((0, 1, 0.0),), ('dy', 'u'))
+            >>> MixedSVAR(res, impact=[[nan, 0.0], [nan, nan]])  # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+            cultivars.exceptions.SpecificationError: long_run must fix at least one cell; ...
+            >>> MixedSVAR(res, impact=[[nan, 0.0], [nan, nan]], long_run=[[nan, 0.0], [nan, nan]])
+            ...     # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+            cultivars.exceptions.SpecificationError: a rotation-solved mixed pattern needs ...
+        """
         super().__init__(result)
         if getattr(result, "is_stable", True) is False:
             raise SpecificationError(
@@ -690,7 +1085,28 @@ class MixedSVAR(_IdentificationModel[SVARResult]):
     def _fixed_cells(
         pattern: npt.ArrayLike | None, size: int, label: str
     ) -> tuple[tuple[int, int, float], ...]:
-        """The declared restrictions of one pattern, as (row, column, value)."""
+        """The declared restrictions of one pattern, as (row, column, value).
+
+        Args:
+            pattern: The ``(size, size)`` pattern, or ``None`` for no
+                restrictions.
+            size: System dimension.
+            label: Which pattern this is, for error messages.
+
+        Returns:
+            The fixed cells in row-major order.
+
+        Raises:
+            SpecificationError: If the pattern has the wrong shape or
+                contains an infinity.
+
+        Example:
+            >>> import numpy as np
+            >>> MixedSVAR._fixed_cells(None, 2, "impact")
+            ()
+            >>> MixedSVAR._fixed_cells([[np.nan, 0.0], [1.5, np.nan]], 2, "impact")
+            ((0, 1, 0.0), (1, 0, 1.5))
+        """
         if pattern is None:
             return ()
         base, free = _validate_impact_pattern(pattern, size=size, label=label)
@@ -704,7 +1120,18 @@ class MixedSVAR(_IdentificationModel[SVARResult]):
 
     @property
     def n_restrictions(self) -> int:
-        """Declared restrictions across both horizons."""
+        """Declared restrictions across both horizons, always ``k(k-1)/2``.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> rng = np.random.default_rng(0)
+            >>> res = VAR(rng.standard_normal((121, 3)), order=1).fit()
+            >>> nan = np.nan
+            >>> pattern = [[nan, 0.0, 0.0], [nan, nan, 0.0], [nan, nan, nan]]
+            >>> MixedSVAR(res, long_run=pattern).n_restrictions
+            3
+        """
         return len(self._impact_cells) + len(self._long_cells)
 
     def identify(self) -> SVARResult:
@@ -713,6 +1140,9 @@ class MixedSVAR(_IdentificationModel[SVARResult]):
         Both components of the orthogonal group are searched -- rotations
         directly, reflections through a fixed sign flip of the factor -- so a
         pattern with nonzero fixed values is reachable wherever it lives.
+        Columns whose fixed cells are all zero are signed so their largest
+        entry is positive; a column with a nonzero fixed value keeps the
+        sign that value implies.
 
         Returns:
             The complete structural result.
@@ -724,6 +1154,32 @@ class MixedSVAR(_IdentificationModel[SVARResult]):
                 is the rank condition failing at this pattern -- the declared
                 cells are arranged so that no factorization of this covariance
                 can honor all of them at once.
+
+        Example:
+            A single long-run zero in two variables is the Blanchard-Quah
+            triangle, and the rotation lands on the closed form; a fixed
+            impact value no factorization can reach is refused:
+
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> rng = np.random.default_rng(0)
+            >>> y = np.zeros((402, 2))
+            >>> for t in range(1, 402):
+            ...     y[t] = 0.4 * y[t - 1] + rng.standard_normal(2)
+            >>> res = VAR(y, order=1, names=("dy", "u")).fit()
+            >>> nan = np.nan
+            >>> mixed = MixedSVAR(res, long_run=[[nan, 0.0], [nan, nan]]).identify()
+            >>> bool(np.allclose(mixed.impact, LongRunSVAR(res).identify().impact))
+            True
+            >>> dict(mixed.diagnostics)["At the long run"], mixed.restriction[:27]
+            ('1', '0 cells fixed on impact and')
+            >>> MixedSVAR(res, impact=[[nan, 5.0], [nan, nan]], long_run=[[nan, nan], [nan, 0.0]])
+            ...     # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+            cultivars.exceptions.SpecificationError: a rotation-solved mixed pattern needs ...
+            >>> MixedSVAR(res, long_run=[[nan, 5.0], [nan, nan]]).identify()  # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+            cultivars.exceptions.NumericalError: no factorization of the innovation covariance ...
         """
         k = self.k_endog
         sigma = np.asarray(self.source.sigma_u, dtype=np.float64)

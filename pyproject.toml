@@ -36,6 +36,7 @@ dependencies = [
 #    "numba",
     "scipy",
     "fedfred",
+    "matplotlib",
 ]
 
 [project.optional-dependencies]
@@ -89,6 +90,9 @@ docs = [
     "sphinx-copybutton",
     "sphinx-remove-toctrees",
     "sphinx-last-updated-by-git",
+    "sphinxcontrib-bibtex",
+    "sphinx-gallery",
+    "sphinx-tippy",
 ]
 notebooks = [
     "jupyterlab",

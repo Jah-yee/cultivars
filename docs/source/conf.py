@@ -16,6 +16,7 @@ from typing import TypeAliasType
 
 from sphinx.application import Sphinx
 from sphinx.pycode import ModuleAnalyzer
+from sphinx_gallery.sorting import ExampleTitleSortKey
 
 # -- Path setup --------------------------------------------------------------
 _ROOT = Path(__file__).resolve().parents[2]
@@ -43,6 +44,8 @@ extensions: list[str] = [
     "sphinx.ext.mathjax",
     "sphinx.ext.extlinks",
     "sphinx.ext.doctest",
+    "sphinx.ext.inheritance_diagram",
+    "sphinx.ext.coverage",
     "sphinx_autodoc_typehints",
     "sphinx_design",
     "sphinx_sitemap",
@@ -52,6 +55,10 @@ extensions: list[str] = [
     "sphinx_copybutton",
     "sphinx_remove_toctrees",
     "sphinx_last_updated_by_git",
+    "sphinxcontrib.bibtex",
+    "matplotlib.sphinxext.plot_directive",
+    "sphinx_gallery.gen_gallery",
+    "sphinx_tippy",
 ]
 
 templates_path: list[str] = ["_templates"]
@@ -261,6 +268,61 @@ ogp_custom_meta_tags: list[str] = [
     '<meta property="og:site_name" content="cultivars Documentation" />',
     '<meta property="og:image:alt" content="cultivars Logo" />',
 ]
+
+# -- bibtex --
+bibtex_bibfiles: list[str] = ["references.bib"]
+bibtex_default_style: str = "unsrt"
+bibtex_reference_style: str = "author_year"
+
+# -- plot_directive --
+plot_include_source: bool = True
+plot_html_show_source_link: bool = False
+plot_html_show_formats: bool = False
+plot_formats: list[tuple[str, int]] = [("png", 150)]
+plot_pre_code: str = "import numpy as np\nimport matplotlib.pyplot as plt\nimport cultivars"
+
+# -- sphinx-gallery ----------------------------------------------------------
+sphinx_gallery_conf: dict[str, object] = {
+    "examples_dirs": [str(_ROOT / "examples")],
+    "gallery_dirs": ["auto_examples"],  # relative to docs/source
+    "filename_pattern": r"/plot_",  # only plot_*.py are executed
+    "ignore_pattern": r"/_",
+    "within_subsection_order": ExampleTitleSortKey,
+    "doc_module": ("cultivars",),
+    "reference_url": {"cultivars": None},  # None = link into this build
+    "backreferences_dir": "gen_modules/backreferences",
+    "image_scrapers": ("matplotlib",),
+    "reset_modules": ("matplotlib",),
+    "capture_repr": ("_repr_html_", "__repr__"),
+    "matplotlib_animations": False,
+    "remove_config_comments": True,
+    "download_all_examples": False,
+    "show_memory": False,
+    "show_signature": False,
+    "min_reported_time": 10,
+    "abort_on_example_error": True,
+    "plot_gallery": os.environ.get("DOCS_PLOT_GALLERY", "1") == "1",
+    "default_thumb_file": str(_ROOT / "docs" / "source" / "_static" / "cultivars-logo.png"),
+}
+
+# Keep generated backreference stubs out of the sidebar toctree
+# (you already load sphinx_remove_toctrees but never configured it).
+remove_from_toctrees: list[str] = ["gen_modules/backreferences/*"]
+
+# -- sphinx-tippy ------------------------------------------------------------
+tippy_props: dict[str, object] = {
+    "placement": "auto-start",
+    "maxWidth": 500,
+    "theme": "material",
+    "interactive": True,
+    "delay": [200, 0],
+}
+tippy_anchor_parent_selector: str = "article.bd-article"  # pydata body only; skips navbar/sidebars
+tippy_skip_anchor_classes: list[str] = ["headerlink", "sd-stretched-link"]
+tippy_enable_mathjax: bool = True  # tips for equation references
+tippy_enable_wikitips: bool = False  # build-time network fetch; low value here
+tippy_enable_doitips: bool = False  # see note 3
+tippy_add_class: str = "has-tippy"
 
 # -- doctest -----------------------------------------------------------------
 doctest_global_setup: str = "import numpy as np\nimport cultivars"

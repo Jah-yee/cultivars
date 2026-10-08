@@ -19,46 +19,98 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+r"""Non-Gaussian identification: independence does what zeros used to.
 
-"""Non-Gaussian identification: independence does what zeros used to.
+Every impact matrix consistent with the innovation covariance is
+:math:`B = L Q` for the Cholesky factor :math:`L` and some orthogonal
+:math:`Q`, and the Gaussian distribution is the only one a rotation cannot
+leave: rotate two independent normal shocks and the result is two
+independent normal shocks, which is precisely why every Gaussian scheme in
+this package needs an economic restriction to choose :math:`Q`. Drop
+normality and the symmetry breaks. With mutually independent shocks of which
+at most one is Gaussian, :math:`Q` is identified up to column order and sign
+from the data alone (Comon 1994), and the SVAR literature has built
+estimators on exactly this fact (Lanne, Meitz and Saikkonen 2017;
+Gouriéroux, Monfort and Renne 2017). The estimator here is the moment route
+rather than a parametric likelihood: whiten the innovations, and find the
+rotation that jointly diagonalizes the third- and fourth-order cumulant
+slices,
 
-The Gaussian distribution is the only one a rotation cannot leave: rotate two
-independent normal shocks and the result is two independent normal shocks,
-which is precisely why every Gaussian scheme in this package needs an economic
-restriction to choose among rotations. Drop normality and the symmetry
-breaks -- with mutually independent shocks of which at most one is Gaussian,
-the impact matrix is identified up to column order and sign from the data
-alone (Comon 1994), and the SVAR literature has built estimators on exactly
-this fact (Lanne, Meitz, and Saikkonen 2017; Gouriéroux, Monfort, and Renne
-2017).
+.. math::
 
-The estimator here is the moment route rather than a parametric likelihood:
-whiten the innovations by the Cholesky factor, and find the rotation that
-jointly diagonalizes the third- and fourth-order cumulant slices -- for
-independent sources every one of them is diagonal in source coordinates, so
-the search is the same joint-diagonalization surface the heteroskedasticity
-scheme refines, warm-started at the eigenvectors of the kurtosis-weighted
-covariance (the FOBI solution). Third-order slices carry skewness and
-fourth-order slices carry tail weight, so a shock identified through either
-is reachable.
+   C^{(3)}_{\cdot\cdot j} = \mathbb{E}[w_i w_k w_j], \qquad
+   C^{(4)}_{\cdot\cdot jl} = \mathbb{E}[w_i w_k w_j w_l]
+   - \delta_{ik}\delta_{jl} - \delta_{ij}\delta_{kl} - \delta_{il}\delta_{jk},
 
-As with heteroskedasticity, the data identify and the user labels: the
-recovered shocks are statistical objects, ordered by how non-Gaussian they
-are, and an economic name for any of them is a claim to be argued from
-outside the model. The identification condition -- at most one Gaussian
-shock -- is checked empirically and reported.
+every one of which is diagonal in source coordinates when the sources are
+independent. Third-order slices carry skewness and fourth-order slices carry
+tail weight, so a shock identified through either is reachable, and the
+search is warm-started at the eigenvectors of the kurtosis-weighted
+covariance -- the FOBI solution -- on the same joint-diagonalization surface
+the heteroskedasticity scheme refines.
+
+Two commitments shape the surface. First, the data identify and the user
+labels. The recovered shocks are statistical objects, ordered by how
+non-Gaussian they are and named ``shock1 ... shockk`` unless the user says
+otherwise; an economic name for any of them is a claim to be argued from
+outside the model, and the restriction note on every summary says so.
+Second, the identification condition is checked, not assumed. Each shock's
+skewness and excess kurtosis are reported against their sampling noise, a
+count of statistically Gaussian shocks above one is flagged ``WEAK``, and the
+residual off-diagonal energy after joint diagonalization is reported as the
+data's verdict on independence itself -- the assumption that is strictly
+stronger than uncorrelatedness, and the one common volatility across shocks
+would violate.
+
+Layout. :class:`NonGaussianSVAR` is an ``_IdentificationModel`` from
+``_internals``; it whitens through ``_lower_cholesky`` in ``_core``, builds
+the slices with ``_cumulant_slices`` in ``_core``, and minimizes the shared
+``_CoDiagonalObjective`` from ``_internals`` with ``_solve``, then packages
+the rotation into ``SVARResult`` from
+:mod:`~cultivars.multivariate.structural.zero_restrictions` with
+``scheme="non-Gaussian"``. The second-moment route to the same kind of
+statistical identification is
+:mod:`~cultivars.multivariate.structural.heteroskedacity`.
 
 References:
     Comon, P. (1994). Independent component analysis, a new concept? *Signal
-        Processing*, 36(3), 287-314.
-    Cardoso, J.-F., & Souloumiac, A. (1993). Blind beamforming for non-Gaussian
-        signals. *IEE Proceedings F*, 140(6), 362-370.
+    Processing*, 36(3), 287-314.
+
+    Cardoso, J.-F., & Souloumiac, A. (1993). Blind beamforming for
+    non-Gaussian signals. *IEE Proceedings F*, 140(6), 362-370.
+
     Lanne, M., Meitz, M., & Saikkonen, P. (2017). Identification and
-        estimation of non-Gaussian structural vector autoregressions.
-        *Journal of Econometrics*, 196(2), 288-304.
+    estimation of non-Gaussian structural vector autoregressions. *Journal of
+    Econometrics*, 196(2), 288-304.
+
     Gouriéroux, C., Monfort, A., & Renne, J.-P. (2017). Statistical inference
-        for independent component analysis: Application to structural VAR
-        models. *Journal of Econometrics*, 196(1), 111-126.
+    for independent component analysis: Application to structural VAR
+    models. *Journal of Econometrics*, 196(1), 111-126.
+
+Example:
+    The same bivariate system identified twice, once with Laplace and
+    uniform shocks and once with Gaussian ones. The first recovers the impact
+    columns from independence alone; the second returns a rotation the data
+    could not have chosen, and says so:
+
+    >>> import numpy as np
+    >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+    >>> rng = np.random.default_rng(0)
+    >>> B = np.array([[1.0, 0.5], [0.3, 1.0]])
+    >>> def simulate(eps):
+    ...     y = np.zeros((602, 2))
+    ...     for t in range(1, 602):
+    ...         y[t] = 0.4 * y[t - 1] + B @ eps[t]
+    ...     return VAR(y, order=1).fit()
+    >>> heavy = rng.laplace(size=602) / np.sqrt(2)
+    >>> flat = rng.uniform(-np.sqrt(3), np.sqrt(3), size=602)
+    >>> sharp = NonGaussianSVAR(simulate(np.column_stack([heavy, flat]))).identify()
+    >>> blunt = NonGaussianSVAR(simulate(rng.standard_normal((602, 2)))).identify()
+    >>> dict(sharp.diagnostics)["Identification"], dict(blunt.diagnostics)["Identification"]
+    ('at most one Gaussian shock', 'WEAK: 2 shocks statistically Gaussian')
+    >>> unit = lambda v: v / np.linalg.norm(v)
+    >>> bool(np.abs(unit(sharp.impact[:, 0]) - unit(B[:, 0])).max() < 0.07)
+    True
 """
 
 from __future__ import annotations
@@ -80,15 +132,19 @@ __all__ = ["NonGaussianSVAR"]
 
 
 class NonGaussianSVAR(_IdentificationModel[SVARResult]):
-    """Identification from shock independence and non-Gaussianity, Comon (1994).
+    r"""Identification from shock independence and non-Gaussianity, Comon (1994).
 
-    The identifying assumptions are statistical and stated as such: the
-    structural shocks are mutually *independent* -- strictly stronger than the
-    uncorrelatedness every scheme imposes -- and at most one of them is
-    Gaussian. Under them, the rotation of the whitened innovations that
-    restores independence is unique up to column order and sign, and it is
-    found by jointly diagonalizing the empirical third- and fourth-order
-    cumulant slices.
+    Whiten the innovations by the Cholesky factor of their second moment,
+    :math:`w_t = L^{-1} u_t`, so that any impact matrix consistent with the
+    covariance is :math:`B = L Q` for an orthogonal :math:`Q`. If the
+    structural shocks :math:`\varepsilon_t = Q' w_t` are mutually
+    *independent* and at most one is Gaussian, :math:`Q` is unique up to
+    column order and sign: independence makes every third- and fourth-order
+    cumulant slice of the shocks diagonal, and only the Gaussian direction
+    leaves those slices invariant under rotation. The estimator finds the
+    :math:`Q` that jointly diagonalizes the empirical cumulant slices of
+    :math:`w_t`, warm-started at the eigenvectors of the kurtosis-weighted
+    covariance (the FOBI solution).
 
     Shocks are unit variance, ordered by descending absolute excess kurtosis
     -- the most non-Gaussian first -- and labelled as the statistical objects
@@ -97,29 +153,70 @@ class NonGaussianSVAR(_IdentificationModel[SVARResult]):
     inside sampling noise is one the data could not have separated, which the
     identification flag says plainly.
 
-    Args:
-        result: The fitted closed reduced-form result to identify.
-        shock_names: One label per shock column, in descending-kurtosis order.
-            Defaults to ``shock1 ... shockk``, deliberately not the variable
-            names.
+    Note:
+        The identifying assumptions are statistical and stated as such.
+        Independence is strictly stronger than the uncorrelatedness every
+        scheme imposes -- it rules out, for instance, common volatility
+        across shocks, which makes the shocks dependent through their second
+        moments even when uncorrelated -- and the at-most-one-Gaussian
+        condition is what the ``Identification`` diagnostic checks. As with
+        heteroskedasticity, the data identify and the user labels: the
+        default names are ``shock1 ... shockk`` on purpose, and an economic
+        name for a column is a claim argued from outside the model.
 
-    Raises:
-        SpecificationError: If the result is not a closed system, the labels
-            are malformed, or the effective sample is too short for
-            fourth-moment estimation.
-        NumericalError: If the innovation covariance is not positive definite.
+    Attributes:
+        _source: The closed reduced-form result being identified.
+        _labels: The shock labels, in descending-kurtosis column order.
+
+    See Also:
+        * :class:`~cultivars.multivariate.structural.zero_restrictions.SVARResult`
+          -- the complete result returned.
+        * :class:`~cultivars.multivariate.structural.heteroskedacity.HeteroskedasticSVAR`
+          -- identification from second-moment shifts across declared
+          regimes, on the same joint-diagonalization surface.
+
+    References:
+        Comon, P. (1994). Independent component analysis, a new concept?
+        *Signal Processing*, 36(3), 287-314.
+
+        Cardoso, J.-F., & Souloumiac, A. (1993). Blind beamforming for
+        non-Gaussian signals. *IEE Proceedings F*, 140(6), 362-370.
+
+        Lanne, M., Meitz, M., & Saikkonen, P. (2017). Identification and
+        estimation of non-Gaussian structural vector autoregressions.
+        *Journal of Econometrics*, 196(2), 288-304.
+
+        Gouriéroux, C., Monfort, A., & Renne, J.-P. (2017). Statistical
+        inference for independent component analysis: Application to
+        structural VAR models. *Journal of Econometrics*, 196(1), 111-126.
 
     Example:
+        A heavy-tailed shock and a flat-tailed one mixed through a non-
+        triangular impact matrix. Independence recovers both columns up to
+        scale with no economic restriction, the heavy-tailed shock comes
+        first, and the recovered shock series track the truth:
+
+        >>> import numpy as np
+        >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
         >>> rng = np.random.default_rng(0)
-        >>> from cultivars.multivariate.reduced_form import VAR
-        >>> shocks = np.column_stack(
-        ...     [rng.laplace(size=600), rng.uniform(-1.7, 1.7, size=600)]
-        ... )
-        >>> y = np.zeros((600, 2))
-        >>> for t in range(1, 600):
-        ...     y[t] = 0.4 * y[t - 1] + shocks[t]
-        >>> svar = NonGaussianSVAR(VAR(y, order=1).fit()).identify()
-        >>> svar.is_complete
+        >>> B = np.array([[1.0, 0.5], [0.3, 1.0]])
+        >>> heavy = rng.laplace(size=602) / np.sqrt(2)
+        >>> flat = rng.uniform(-np.sqrt(3), np.sqrt(3), size=602)
+        >>> eps = np.column_stack([heavy, flat])
+        >>> y = np.zeros((602, 2))
+        >>> for t in range(1, 602):
+        ...     y[t] = 0.4 * y[t - 1] + B @ eps[t]
+        >>> res = VAR(y, order=1, names=("a", "b")).fit()
+        >>> svar = NonGaussianSVAR(res, shock_names=("heavy", "flat")).identify()
+        >>> svar.is_complete, svar.shock_names, dict(svar.diagnostics)["Identification"]
+        (True, ('heavy', 'flat'), 'at most one Gaussian shock')
+        >>> dict(svar.diagnostics)["Excess kurtosis"]
+        '3.249, -1.196'
+        >>> unit = lambda v: v / np.linalg.norm(v)
+        >>> bool(np.abs(unit(svar.impact[:, 0]) - unit(B[:, 0])).max() < 0.07)
+        True
+        >>> recovered = svar.structural_shocks()
+        >>> bool(np.corrcoef(recovered[:, 1], flat[1:])[0, 1] > 0.99)
         True
     """
 
@@ -131,7 +228,34 @@ class NonGaussianSVAR(_IdentificationModel[SVARResult]):
         *,
         shock_names: Sequence[str] | None = None,
     ) -> None:
-        """Validate the source system, the sample length, and the labels."""
+        """Validate the source system, the sample length, and the labels.
+
+        Args:
+            result: The fitted closed reduced-form result to identify.
+            shock_names: One label per shock column, in descending-kurtosis
+                order. Defaults to ``shock1 ... shockk``, deliberately not the
+                variable names.
+
+        Raises:
+            SpecificationError: If the result is not a closed system, the
+                labels are malformed, or the effective sample has fewer than
+                ``10 k`` rows -- too few for fourth-order cumulants.
+
+        Example:
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> rng = np.random.default_rng(0)
+            >>> res = VAR(rng.standard_normal((121, 2)), order=1).fit()
+            >>> NonGaussianSVAR(res, shock_names=("u", "v"))._labels
+            ('u', 'v')
+            >>> NonGaussianSVAR(res, shock_names=("u",))  # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+            cultivars.exceptions.SpecificationError: shock_names must be 2 unique labels; ...
+            >>> short = VAR(rng.standard_normal((15, 2)), order=1).fit()
+            >>> NonGaussianSVAR(short)  # doctest: +ELLIPSIS
+            Traceback (most recent call last):
+            cultivars.exceptions.SpecificationError: an effective sample of 14 rows is too short ...
+        """
         super().__init__(result)
         k = self.k_endog
         nobs_resid = int(np.asarray(result.resid).shape[0])
@@ -152,13 +276,39 @@ class NonGaussianSVAR(_IdentificationModel[SVARResult]):
     def identify(self) -> SVARResult:
         """Recover the impact matrix by restoring shock independence.
 
+        Whitens the residuals, warm-starts at the FOBI eigenvectors, refines
+        them by joint diagonalization of the third- and fourth-order
+        cumulant slices, orders the columns by descending absolute excess
+        kurtosis, and signs each column so its largest entry is positive.
+
         Returns:
             The complete structural result, shock columns in descending order
-            of absolute excess kurtosis.
+            of absolute excess kurtosis, with each shock's skewness and
+            excess kurtosis, the co-diagonalization residual and the
+            Gaussianity verdict in its diagnostics.
 
         Raises:
             NumericalError: If the innovation covariance is not positive
                 definite.
+
+        Example:
+            Gaussian innovations carry no identifying information: the
+            scheme still returns a rotation, and the verdict says the data
+            could not have chosen it:
+
+            >>> import numpy as np
+            >>> from cultivars.multivariate.reduced_form.vector_autoregression import VAR
+            >>> rng = np.random.default_rng(0)
+            >>> B = np.array([[1.0, 0.5], [0.3, 1.0]])
+            >>> y = np.zeros((602, 2))
+            >>> for t in range(1, 602):
+            ...     y[t] = 0.4 * y[t - 1] + B @ rng.standard_normal(2)
+            >>> res = VAR(y, order=1).fit()
+            >>> svar = NonGaussianSVAR(res).identify()
+            >>> svar.is_complete, dict(svar.diagnostics)["Identification"]
+            (True, 'WEAK: 2 shocks statistically Gaussian')
+            >>> bool(np.allclose(svar.impact @ svar.impact.T, res.resid.T @ res.resid / 601))
+            True
         """
         k = self.k_endog
         resid = np.asarray(self.source.resid, dtype=np.float64)
