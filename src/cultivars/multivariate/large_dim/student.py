@@ -127,14 +127,13 @@ import numpy as np
 import numpy.typing as npt
 
 from ...bayes.priors import NormalInverseWishartPrior
-from ...engine._core import SummaryTable, Trend
-from ...engine._internals import (
-    _Prior,
-    _StudentBayesianVectorAutoRegressionModel,
-    _VectorPosteriorDrawsResult,
-    _VectorStudentFit,
-)
+from ...engine._core._types import Trend
+from ...engine._internals._fits import _VectorStudentFit
+from ...engine._internals._models import _StudentBayesianVectorAutoRegressionModel
+from ...engine._internals._priors import _Prior
+from ...engine._internals._results import _VectorPosteriorDrawsResult
 from ...exceptions import SpecificationError
+from ...summary import SummaryTable
 
 __all__ = ["StudentBVAR", "StudentBVARResult"]
 

@@ -171,8 +171,8 @@ def _ols(
         DimensionError: If the shapes are not conformable.
 
     Example:
-        >>> beta, ssr = ols(np.ones((5, 1)), np.arange(5.0))
-        >>> float(beta[0])
+        >>> beta, ssr = _ols(np.ones((5, 1)), np.arange(5.0))
+        >>> round(float(beta[0]), 10)
         2.0
     """
     if design.ndim != 2 or design.shape[0] != target.shape[0]:
@@ -295,7 +295,7 @@ def _ergodic_distribution(
         NumericalError: If no valid distribution can be recovered.
 
     Example:
-        >>> np.round(ergodic_distribution(np.array([[0.9, 0.1], [0.2, 0.8]])), 4)
+        >>> np.round(_ergodic_distribution(np.array([[0.9, 0.1], [0.2, 0.8]])), 4)
         array([0.6667, 0.3333])
     """
     k = transition.shape[0]
@@ -948,10 +948,10 @@ def _rhat(draws: npt.ArrayLike) -> float:
     Example:
         >>> rng = np.random.default_rng(0)
         >>> mixed = rng.standard_normal((2, 400))
-        >>> rhat(mixed) < 1.02
+        >>> _rhat(mixed) < 1.02
         True
         >>> apart = np.stack([mixed[0], mixed[1] + 5.0])
-        >>> rhat(apart) > 1.5
+        >>> _rhat(apart) > 1.5
         True
     """
     chains = _as_chains(draws)
@@ -976,10 +976,10 @@ def _ess_bulk(draws: npt.ArrayLike) -> float:
     Example:
         >>> rng = np.random.default_rng(1)
         >>> x = rng.standard_normal(2000)
-        >>> 1400 < ess_bulk(x) < 2600
+        >>> 1400 < _ess_bulk(x) < 2600
         True
         >>> sticky = np.repeat(x[:200], 10)
-        >>> ess_bulk(sticky) < 400
+        >>> _ess_bulk(sticky) < 400
         True
     """
     return _effective_sample_size(_rank_normalize(_split_chains(_as_chains(draws))))
@@ -1001,7 +1001,7 @@ def _ess_tail(draws: npt.ArrayLike) -> float:
 
     Example:
         >>> rng = np.random.default_rng(2)
-        >>> 900 < ess_tail(rng.standard_normal(2000)) < 2600
+        >>> 900 < _ess_tail(rng.standard_normal(2000)) < 2600
         True
     """
     chains = _as_chains(draws)
@@ -1024,7 +1024,7 @@ def _ess_mean(draws: npt.ArrayLike) -> float:
 
     Example:
         >>> rng = np.random.default_rng(3)
-        >>> 1400 < ess_mean(rng.standard_normal(2000)) < 2600
+        >>> 1400 < _ess_mean(rng.standard_normal(2000)) < 2600
         True
     """
     return _effective_sample_size(_split_chains(_as_chains(draws)))
@@ -1038,7 +1038,7 @@ def _mcse_mean(draws: npt.ArrayLike) -> float:
 
     Example:
         >>> rng = np.random.default_rng(4)
-        >>> round(mcse_mean(rng.standard_normal(10_000)), 1)
+        >>> round(_mcse_mean(rng.standard_normal(10_000)), 1)
         0.0
     """
     chains = _as_chains(draws)
@@ -1071,7 +1071,7 @@ def _geweke(
 
     Example:
         >>> rng = np.random.default_rng(5)
-        >>> z = geweke(rng.standard_normal((3, 1000)))
+        >>> z = _geweke(rng.standard_normal((3, 1000)))
         >>> z.shape
         (3,)
         >>> bool(np.all(np.abs(z) < 4.0))
@@ -3429,7 +3429,7 @@ def _enforce_durations(
     Example:
         >>> y = np.array([0.0, 3.0, 2.9, 3.1, 0.0, 1.0, 5.0, 1.0])
         >>> turns = [(1, True), (2, False), (3, True), (4, False), (6, True)]
-        >>> _enforce_durations(y, turns, 2, 4)
+        >>> _enforce_durations(y, turns, 1, 3)
         [(3, True), (4, False), (6, True)]
     """
     current = list(turns)

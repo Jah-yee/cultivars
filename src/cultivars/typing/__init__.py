@@ -74,13 +74,13 @@ Example:
     validates at runtime through the same object:
 
     >>> from typing import get_args
-    >>> from cultivars._core import validate_choice
+    >>> from cultivars.engine._core._validators import _validate_choice
     >>> trend: Trend = "ct"
     >>> get_args(Trend.__value__)
     ('n', 'c', 'ct')
-    >>> validate_choice(trend, Trend, "trend")
+    >>> _validate_choice(trend, Trend, "trend")
     'ct'
-    >>> validate_choice("quadratic", Trend, "trend")
+    >>> _validate_choice("quadratic", Trend, "trend")
     Traceback (most recent call last):
         ...
     cultivars.exceptions.SpecificationError: trend must be one of ('n', 'c', 'ct'); got 'quadratic'.

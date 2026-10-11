@@ -42,7 +42,7 @@ def _require_optional(module: str) -> ModuleType:
             provides it.
 
     Example:
-        >>> require_optional("numpy").__name__
+        >>> _require_optional("numpy").__name__
         'numpy'
     """
     try:

@@ -119,7 +119,7 @@ class _StabilityAssessment:
             A :class:`StabilityResult`.
 
         Example:
-            >>> res = assess_stability([0.5])
+            >>> res = _StabilityAssessment.assess_stability([0.5])
             >>> res.is_stable
             True
             >>> round(res.max_modulus, 4)
@@ -157,7 +157,7 @@ class _StabilityAssessment:
         """Convenience predicate: is the AR/VAR strictly stationary?
 
         Example:
-            >>> is_stationary([1.5])
+            >>> _StabilityAssessment.is_stationary([1.5])
             False
         """
         return cls.assess_stability(ar_coeffs, tol=tol, allow_unit_roots=False).is_stable

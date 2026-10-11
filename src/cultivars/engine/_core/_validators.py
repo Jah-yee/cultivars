@@ -199,7 +199,7 @@ def _validate_order_tuple(
         SpecificationError: If the arity is wrong or any element is invalid.
 
     Example:
-        >>> validate_order_tuple((1, 0, 2), ("p", "d", "q"))
+        >>> _validate_order_tuple((1, 0, 2), ("p", "d", "q"))
         (1, 0, 2)
     """
     if len(order) != len(labels):
@@ -235,9 +235,9 @@ def _validate_choice[T](value: T, allowed: object, label: str) -> T:
     Example:
         >>> from typing import Literal
         >>> type Trend = Literal["n", "c", "ct"]
-        >>> validate_choice("c", Trend, "trend")
+        >>> _validate_choice("c", Trend, "trend")
         'c'
-        >>> validate_choice("c", ("n", "c", "ct"), "trend")
+        >>> _validate_choice("c", ("n", "c", "ct"), "trend")
         'c'
     """
     if isinstance(allowed, TypeAliasType):
@@ -321,9 +321,9 @@ def _validate_endog_matrix(endog: npt.ArrayLike) -> npt.NDArray[np.float64]:
         NumericalError: If the panel contains non-finite values.
 
     Example:
-        >>> validate_endog_matrix(np.arange(6.0)).shape
+        >>> _validate_endog_matrix(np.arange(6.0)).shape
         (6, 1)
-        >>> validate_endog_matrix([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]).shape
+        >>> _validate_endog_matrix([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]).shape
         (3, 2)
     """
     arr = np.asarray(endog, dtype=np.float64)
@@ -384,7 +384,7 @@ def _validate_exog_matrix(
         NumericalError: If the block contains non-finite values.
 
     Example:
-        >>> validate_exog_matrix([1.0, 2.0, 3.0], nobs=3).shape
+        >>> _validate_exog_matrix([1.0, 2.0, 3.0], nobs=3).shape
         (3, 1)
     """
     arr = np.asarray(exog, dtype=np.float64)
@@ -439,7 +439,7 @@ def _validate_panel(
         NumericalError: If any unit contains non-finite values.
 
     Example:
-        >>> units = validate_panel(np.zeros((3, 20, 2)))
+        >>> units = _validate_panel(np.zeros((3, 20, 2)))
         >>> len(units), units[0].shape
         (3, (20, 2))
     """
@@ -519,7 +519,7 @@ def _validate_weights(
             one, or any weight is negative.
 
     Example:
-        >>> validate_weights([[0.0, 1.0], [1.0, 0.0]], n_units=2).shape
+        >>> _validate_weights([[0.0, 1.0], [1.0, 0.0]], n_units=2).shape
         (2, 2)
     """
     arr = np.asarray(weights, dtype=np.float64)
@@ -1064,7 +1064,7 @@ def _bandwidth(nobs: int, m: int | None, exponent: float) -> int:
             does not lie in ``(0, 1)``.
 
     Example:
-        >>> bandwidth(400, None, 0.5)
+        >>> _bandwidth(400, None, 0.5)
         20
     """
     if m is not None:

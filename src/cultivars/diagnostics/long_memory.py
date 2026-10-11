@@ -103,9 +103,9 @@ Example:
     error:
 
     >>> import numpy as np
-    >>> from cultivars._core import fractional_difference_weights
+    >>> from cultivars.engine._core._transforms import _fractional_difference_weights
     >>> rng = np.random.default_rng(0)
-    >>> weights = fractional_difference_weights(-0.3, 1000)
+    >>> weights = _fractional_difference_weights(-0.3, 1000)
     >>> y = np.convolve(rng.standard_normal(1000), weights)[:1000]
     >>> for estimate in (gph(y), local_whittle(y), exact_local_whittle(y)):
     ...     print(f"{estimate.method:<20} d={estimate.d:.2f}  se={estimate.se:.3f}")

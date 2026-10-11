@@ -82,7 +82,7 @@ def _difference(y: npt.ArrayLike, d: int = 1, *, axis: int = 0) -> npt.NDArray[n
         NumericalError: If ``y`` contains non-finite values.
 
     Example:
-        >>> difference(np.array([1.0, 3.0, 6.0, 10.0]))
+        >>> _difference(np.array([1.0, 3.0, 6.0, 10.0]))
         array([2., 3., 4.])
     """
     if d < 0:
@@ -155,7 +155,7 @@ def _standardize(y: npt.ArrayLike, *, axis: int = 0, ddof: int = 0) -> _Standard
             contains non-finite values.
 
     Example:
-        >>> z = standardize(np.array([1.0, 2.0, 3.0]))
+        >>> z = _standardize(np.array([1.0, 2.0, 3.0]))
         >>> np.round(z.values, 4)
         array([-1.2247,  0.    ,  1.2247])
         >>> round(float(z.mean), 4)
@@ -199,7 +199,7 @@ def _undifference(
 
     Example:
         >>> x = np.array([1.0, 3.0, 6.0, 10.0])
-        >>> undifference(difference(x), [1.0])
+        >>> _undifference(_difference(x), [1.0])
         array([ 1.,  3.,  6., 10.])
     """
     if d < 1:
@@ -235,7 +235,7 @@ def _fractional_difference_weights(d: float, length: int) -> npt.NDArray[np.floa
         SpecificationError: If ``length < 1``.
 
     Example:
-        >>> np.round(fractional_difference_weights(0.5, 4), 4)
+        >>> np.round(_fractional_difference_weights(0.5, 4), 4)
         array([ 1.    , -0.5   , -0.125 , -0.0625])
     """
     if length < 1:
@@ -271,7 +271,7 @@ def _fractional_difference(
         SpecificationError: If ``truncation < 1``.
 
     Example:
-        >>> np.round(fractional_difference(np.array([1.0, 2.0, 3.0, 4.0]), 1.0), 4)
+        >>> np.round(_fractional_difference(np.array([1.0, 2.0, 3.0, 4.0]), 1.0), 4)
         array([1., 1., 1., 1.])
     """
     arr = np.asarray(y, dtype=np.float64)

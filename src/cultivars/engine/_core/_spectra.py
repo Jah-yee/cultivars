@@ -81,7 +81,7 @@ def _frequency_grid(n_frequencies: int) -> npt.NDArray[np.float64]:
         SpecificationError: If fewer than two points are asked for.
 
     Example:
-        >>> grid = frequency_grid(5)
+        >>> grid = _frequency_grid(5)
         >>> bool(grid[0] == 0.0 and abs(grid[-1] - np.pi) < 1e-15)
         True
     """

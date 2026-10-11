@@ -276,7 +276,7 @@ class LinearityTest(_HypothesisTest):
         >>> for t in range(1, 400):
         ...     slope = 0.8 if y[t - 1] < 0.0 else -0.5
         ...     y[t] = slope * y[t - 1] + rng.standard_normal()
-        >>> for test in (terasvirta(y, order=1), tsay(y, order=1), reset(y, order=1)):
+        >>> for test in (terasvirta(y, order=1), tsay(y, order=1), ramsey_reset(y, order=1)):
         ...     print(f"{test.name:<11} {test.alternative:<24} {test.df}  {test.reject()}")
         Teräsvirta  smooth transition        (3, 394)  True
         Tsay        threshold                (2, 336)  True
@@ -355,7 +355,7 @@ class LinearityTest(_HypothesisTest):
 
         Example:
             >>> import numpy as np
-            >>> reset(np.random.default_rng(0).standard_normal(200), order=1)._row()[:1]
+            >>> ramsey_reset(np.random.default_rng(0).standard_normal(200), order=1)._row()[:1]
             ('RESET',)
         """
         df = "" if self.df is None else f"({self.df[0]}, {self.df[1]})"

@@ -82,7 +82,7 @@ class _LagPolynomial:
         NumericalError: If ``coeffs`` contains non-finite entries.
 
     Example:
-        >>> phi = LagPolynomial.from_ar_coeffs([0.5, -0.3])
+        >>> phi = _LagPolynomial.from_ar_coeffs([0.5, -0.3])
         >>> phi.degree
         2
         >>> phi.ar_coeffs()
@@ -159,7 +159,7 @@ class _LagPolynomial:
                 (rank 3) is not square.
 
         Example:
-            >>> LagPolynomial.from_ar_coeffs([0.5, -0.3]).coefficients
+            >>> _LagPolynomial.from_ar_coeffs([0.5, -0.3]).coefficients
             array([ 1. , -0.5,  0.3])
         """
         ar = np.asarray(ar_coeffs, dtype=np.float64)
@@ -242,7 +242,7 @@ class _LagPolynomial:
             (matrix polynomial).
 
         Example:
-            >>> phi = LagPolynomial.from_ar_coeffs([0.5, -0.3])
+            >>> phi = _LagPolynomial.from_ar_coeffs([0.5, -0.3])
             >>> round(float(phi.evaluate(1.0).real), 4)
             0.8
         """

@@ -48,7 +48,7 @@ def _kim_smoother(
     * sum_j [ P_ij * Pr(S_{t+1} = j | y_{1..T}) / Pr(S_{t+1} = j | y_{1..t}) ]``.
 
     Args:
-        filter_result: The output of :func:`hamilton_filter` on the same data.
+        filter_result: The output of ``_hamilton_filter`` on the same data.
         transition: The same row-stochastic ``(K, K)`` transition matrix used
             for filtering.
 
@@ -60,9 +60,10 @@ def _kim_smoother(
         DimensionError: If ``transition`` is not conformable with the filter.
 
     Example:
+        >>> from cultivars.engine._internals._filters import _hamilton_filter
         >>> p = np.array([[0.95, 0.05], [0.10, 0.90]])
         >>> logd = np.log(np.array([[0.9, 0.1], [0.2, 0.8], [0.3, 0.7]]))
-        >>> sm = kim_smoother(hamilton_filter(logd, p), p)
+        >>> sm = _kim_smoother(_hamilton_filter(logd, p), p)
         >>> bool(np.allclose(sm.smoothed_prob.sum(axis=1), 1.0))
         True
     """

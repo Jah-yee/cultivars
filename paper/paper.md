@@ -1,5 +1,5 @@
 ---
-title: 'cultivars: Research-grade time-series econometrics in Python, from reduced forms to structural identification'
+title: "cultivars: Research-grade time-series econometrics in Python, from reduced forms to structural identification"
 tags:
   - Python
   - econometrics
@@ -11,14 +11,14 @@ tags:
   - macroeconomics
 authors:
   - name: Nikhil Sunder
-    orcid: 0000-0000-0000-0000  # TODO: real ORCID
+    orcid: 0000-0000-0000-0000 # TODO: real ORCID
     corresponding: true
     affiliation: 1
 affiliations:
   - name: University of Miami, United States
     index: 1
-    ror: 02dgjyy92  # TODO: verify ROR id
-date: 11 October 2026  # TODO: set on submission
+    ror: 02dgjyy92 # TODO: verify ROR id
+date: 11 October 2026 # TODO: set on submission
 bibliography: paper.bib
 ---
 
@@ -90,16 +90,16 @@ Outside Python, the reference implementations are R packages, including vars
 estimating classes in `cultivars` against statsmodels 0.15.0 and the wider
 Python ecosystem.
 
-| Model group | Classes | statsmodels | Any Python package | No packaged implementation in any language |
-|:--|--:|--:|--:|--:|
-| Univariate | 26 | 8 | 12 | 2 |
-| VAR, reduced form | 12 | 5 | 5 | 3 |
-| VAR, large-dimensional | 11 | 1 | 1 | 0 |
-| VAR, structural | 13 | 2 | 3 | 3 |
-| VAR, nonlinear | 7 | 0 | 0 | 2 |
-| VAR, Markov-switching | 3 | 0 | 0 | 1 |
-| State space | 4 | 1 | 2 | 2 |
-| **Total** | **76** | **17** | **23** | **13** |
+| Model group            | Classes | statsmodels | Any Python package | No packaged implementation in any language |
+| :--------------------- | ------: | ----------: | -----------------: | -----------------------------------------: |
+| Univariate             |      26 |           8 |                 12 |                                          2 |
+| VAR, reduced form      |      12 |           5 |                  5 |                                          3 |
+| VAR, large-dimensional |      11 |           1 |                  1 |                                          0 |
+| VAR, structural        |      13 |           2 |                  3 |                                          3 |
+| VAR, nonlinear         |       7 |           0 |                  0 |                                          2 |
+| VAR, Markov-switching  |       3 |           0 |                  0 |                                          1 |
+| State space            |       4 |           1 |                  2 |                                          2 |
+| **Total**              |  **76** |      **17** |             **23** |                                     **13** |
 
 : Counterparts to `cultivars` estimating classes. \label{tab:coverage}
 

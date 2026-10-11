@@ -1,4 +1,4 @@
-# filepath: /src/cultivars/__about__.py
+# filepath: /src/cultivars/summary.py
 #
 # Copyright (c) 2026 Nikhil Sunder
 #
@@ -60,13 +60,27 @@ Example:
     >>> from cultivars.summary import InformationCriteria, SummaryTable
     >>> from cultivars.univariate.box_jenkins import ARIMA
     >>> res = ARIMA(np.random.default_rng(0).standard_normal(120), order=(1, 0, 0)).fit()
-    >>> isinstance(res.summary(), SummaryTable), isinstance(res.information_criteria, InformationCriteria)
-    (True, True)
-    >>> SummaryTable.__module__, InformationCriteria.__module__
-    ('cultivars.summary', 'cultivars.summary')
+    >>> isinstance(res.summary(), SummaryTable)
+    True
+    >>> isinstance(res.information_criteria, InformationCriteria)
+    True
+    >>> SummaryTable.__module__, SummaryTable.__qualname__
+    ('cultivars.summary', 'SummaryTable')
 """
 
 from .engine._core._containers import _InformationCriteria as InformationCriteria
 from .engine._core._containers import _SummaryTable as SummaryTable
 
 __all__ = ["InformationCriteria", "SummaryTable"]
+
+# Bind the records to their public name, so reprs, pickles, annotations and
+# the API reference all say ``cultivars.summary.SummaryTable`` rather than
+# the private ``_core`` spelling. Pickles resolve ``__module__.__qualname__``,
+# so both must name an attribute that exists here.
+for _record, _public in (
+    (InformationCriteria, "InformationCriteria"),
+    (SummaryTable, "SummaryTable"),
+):
+    _record.__module__ = __name__
+    _record.__name__ = _record.__qualname__ = _public
+del _record, _public

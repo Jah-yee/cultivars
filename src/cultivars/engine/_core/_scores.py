@@ -92,7 +92,7 @@ def _crps_from_draws(
     Example:
         >>> rng = np.random.default_rng(0)
         >>> draws = rng.standard_normal((200000, 1))
-        >>> value = float(crps_from_draws(draws, np.zeros(1))[0])
+        >>> value = float(_crps_from_draws(draws, np.zeros(1))[0])
         >>> theory = 1.0 / np.sqrt(np.pi) * (np.sqrt(2.0) - 1.0)
         >>> bool(abs(value - theory) < 5e-3)
         True

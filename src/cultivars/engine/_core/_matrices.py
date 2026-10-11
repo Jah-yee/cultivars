@@ -85,7 +85,7 @@ def _companion_matrix(ar_coeffs: npt.ArrayLike) -> npt.NDArray[np.float64]:
         NumericalError: If ``ar_coeffs`` contains non-finite values.
 
     Example:
-        >>> C = companion_matrix([0.5, -0.3])
+        >>> C = _companion_matrix([0.5, -0.3])
         >>> C.shape
         (2, 2)
         >>> bool(C[1, 0] == 1.0)
@@ -139,7 +139,7 @@ def _n_deterministic(trend: str) -> int:
         SpecificationError: If ``trend`` is not a recognized specification.
 
     Example:
-        >>> n_deterministic("ct")
+        >>> _n_deterministic("ct")
         2
     """
     try:
@@ -164,7 +164,7 @@ def _deterministic_columns(trend: str, nobs: int, *, start: int = 1) -> npt.NDAr
         An ``(nobs, n_deterministic(trend))`` array.
 
     Example:
-        >>> deterministic_columns("ct", 3, start=2)
+        >>> _deterministic_columns("ct", 3, start=2)
         array([[1., 2.],
                [1., 3.],
                [1., 4.]])
@@ -203,7 +203,7 @@ def _trailing_lag(
 
     Example:
         >>> import numpy as np
-        >>> trailing_lag(np.arange(6.0), delay=2, length=3)
+        >>> _trailing_lag(np.arange(6.0), delay=2, length=3)
         array([1., 2., 3.])
     """
     n = series.shape[0]
@@ -235,7 +235,7 @@ def _lag_matrix(
             reference lags before the beginning of the series.
 
     Example:
-        >>> lag_matrix(np.arange(5.0), 2)
+        >>> _lag_matrix(np.arange(5.0), 2)
         array([[1., 0.],
                [2., 1.],
                [3., 2.]])

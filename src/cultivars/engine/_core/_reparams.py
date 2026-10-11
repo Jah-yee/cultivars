@@ -58,7 +58,7 @@ def _pacf_to_coeffs(pacf: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         The implied AR coefficients ``phi_1, ..., phi_p``.
 
     Example:
-        >>> np.round(pacf_to_coeffs(np.array([0.5, -0.3])), 4)
+        >>> np.round(_pacf_to_coeffs(np.array([0.5, -0.3])), 4)
         array([ 0.65, -0.3 ])
     """
     p = pacf.shape[0]
@@ -124,7 +124,7 @@ def _unpack_stationary(psi: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
 
     Example:
         >>> phi = np.array([0.5, -0.3])
-        >>> bool(np.allclose(unpack_stationary(pack_stationary(phi)), phi))
+        >>> bool(np.allclose(_unpack_stationary(_pack_stationary(phi)), phi))
         True
     """
     if psi.size == 0:
@@ -152,7 +152,7 @@ def _sigmoid(x: float) -> float:
         The value in ``(0, 1)``.
 
     Example:
-        >>> sigmoid(0.0)
+        >>> _sigmoid(0.0)
         0.5
     """
     return float(1.0 / (1.0 + np.exp(-x)))

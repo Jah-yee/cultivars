@@ -337,8 +337,8 @@ class MinnesotaPrior(Prior):
         with residual scales one and four: own lags are dimensionless, cross
         lags carry the scale ratio, and the leading intercept row is loose:
 
-        >>> from cultivars._internals import _PriorContext
-        >>> ctx = _PriorContext(
+        >>> from cultivars.bayes.priors import PriorContext
+        >>> ctx = PriorContext(
         ...     k_endog=2, order=2, scales=np.array([1.0, 4.0]),
         ...     presample_mean=np.array([10.0, 20.0]),
         ... )
@@ -427,7 +427,7 @@ class MinnesotaPrior(Prior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -499,7 +499,7 @@ class MinnesotaPrior(Prior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -558,7 +558,7 @@ class MinnesotaPrior(Prior):
             :math:`(1/4)^2` and in the second scaled up by :math:`4^2`:
 
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.array([1.0, 4.0]),
             ...     presample_mean=np.zeros(2),
@@ -623,8 +623,8 @@ class MinnesotaPrior(Prior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals import _PriorContext
-            >>> ctx = _PriorContext(
+            >>> from cultivars.bayes.priors import PriorContext
+            >>> ctx = PriorContext(
             ...     k_endog=2, order=2, scales=np.ones(2),
             ...     presample_mean=np.array([10.0, 20.0]),
             ... )
@@ -682,7 +682,7 @@ class MinnesotaPrior(Prior):
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class NormalInverseWishartPrior(Prior):
-    r"""The conjugate Normal-inverse-Wishart prior: Litterman's variances with the one weight pinned.
+    r"""The conjugate Normal-inverse-Wishart prior: Litterman's variances, one weight pinned.
 
     Exactly :class:`MinnesotaPrior` with ``cross_equation`` fixed at one, and
     that is not a simplification but a purchase. With :math:`\lambda_2 = 1`
@@ -779,8 +779,8 @@ class NormalInverseWishartPrior(Prior):
         Its variances are Litterman's with the cross-equation weight at one,
         so the cross-lag entries carry only the scale ratio:
 
-        >>> from cultivars._internals import _PriorContext
-        >>> ctx = _PriorContext(
+        >>> from cultivars.bayes.priors import PriorContext
+        >>> ctx = PriorContext(
         ...     k_endog=2, order=1, scales=np.array([1.0, 4.0]),
         ...     presample_mean=np.zeros(2),
         ... )
@@ -881,7 +881,7 @@ class NormalInverseWishartPrior(Prior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -920,7 +920,7 @@ class NormalInverseWishartPrior(Prior):
             constant, the factorization that makes the posterior exact:
 
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.array([1.0, 4.0]),
             ...     presample_mean=np.zeros(2),
@@ -1042,8 +1042,8 @@ class SumOfCoefficientsPrior(Prior):
         column at each lag and is zero in the leading intercept column:
 
         >>> import numpy as np
-        >>> from cultivars._internals import _PriorContext
-        >>> ctx = _PriorContext(
+        >>> from cultivars.bayes.priors import PriorContext
+        >>> ctx = PriorContext(
         ...     k_endog=2, order=2, scales=np.ones(2),
         ...     presample_mean=np.array([10.0, 20.0]),
         ... )
@@ -1124,7 +1124,7 @@ class SumOfCoefficientsPrior(Prior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -1153,7 +1153,7 @@ class SumOfCoefficientsPrior(Prior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -1189,7 +1189,7 @@ class SumOfCoefficientsPrior(Prior):
             Under a constant and a trend the row carries two leading zeros:
 
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2),
             ...     presample_mean=np.array([10.0, 20.0]), n_deterministic=2,
@@ -1305,8 +1305,8 @@ class DummyInitialObservationPrior(Prior):
         means repeated at each lag:
 
         >>> import numpy as np
-        >>> from cultivars._internals import _PriorContext
-        >>> ctx = _PriorContext(
+        >>> from cultivars.bayes.priors import PriorContext
+        >>> ctx = PriorContext(
         ...     k_endog=2, order=2, scales=np.ones(2),
         ...     presample_mean=np.array([10.0, 20.0]),
         ... )
@@ -1376,7 +1376,7 @@ class DummyInitialObservationPrior(Prior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -1402,7 +1402,7 @@ class DummyInitialObservationPrior(Prior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -1440,7 +1440,7 @@ class DummyInitialObservationPrior(Prior):
             to the tightness:
 
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2),
             ...     presample_mean=np.array([10.0, 20.0]), n_deterministic=2,
@@ -1683,7 +1683,7 @@ class IndependentNormalWishartPrior(Prior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -1723,7 +1723,7 @@ class IndependentNormalWishartPrior(Prior):
             cross-equation weight:
 
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.array([1.0, 4.0]),
             ...     presample_mean=np.zeros(2),
@@ -1762,7 +1762,7 @@ class IndependentNormalWishartPrior(Prior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2),
             ...     presample_mean=np.array([10.0, 20.0]),
@@ -1972,7 +1972,7 @@ class HorseshoePrior(_AdaptivePrior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -2034,7 +2034,7 @@ class HorseshoePrior(_AdaptivePrior):
             local-global scale separates them by an order of magnitude:
 
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -2096,7 +2096,7 @@ class HorseshoePrior(_AdaptivePrior):
             hundred times the squared residual scale:
 
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.array([1.0, 4.0]),
             ...     presample_mean=np.zeros(2),
@@ -2137,7 +2137,7 @@ class HorseshoePrior(_AdaptivePrior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -2424,7 +2424,7 @@ class SpikeAndSlabPrior(_AdaptivePrior):
             two-hundredth and the slab a half:
 
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -2483,7 +2483,7 @@ class SpikeAndSlabPrior(_AdaptivePrior):
             prior odds discounted by the width ratio:
 
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -2533,7 +2533,7 @@ class SpikeAndSlabPrior(_AdaptivePrior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -2575,7 +2575,7 @@ class SpikeAndSlabPrior(_AdaptivePrior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -2806,7 +2806,7 @@ class DirichletLaplacePrior(_AdaptivePrior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -2878,8 +2878,8 @@ class DirichletLaplacePrior(_AdaptivePrior):
             local-global scale separates it by an order of magnitude:
 
             >>> import numpy as np
-            >>> from cultivars._internals import _PriorContext
-            >>> ctx = _PriorContext(
+            >>> from cultivars.bayes.priors import PriorContext
+            >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
             >>> prior = DirichletLaplacePrior()
@@ -2944,7 +2944,7 @@ class DirichletLaplacePrior(_AdaptivePrior):
             block is the squared unit ratio over sixteen:
 
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.array([1.0, 4.0]),
             ...     presample_mean=np.zeros(2),
@@ -2987,7 +2987,7 @@ class DirichletLaplacePrior(_AdaptivePrior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -3222,7 +3222,7 @@ class NormalGammaPrior(_AdaptivePrior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -3288,7 +3288,7 @@ class NormalGammaPrior(_AdaptivePrior):
             separates them by an order of magnitude:
 
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )
@@ -3339,7 +3339,7 @@ class NormalGammaPrior(_AdaptivePrior):
             lag block is ``0.04`` times the squared unit ratio:
 
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.array([1.0, 4.0]),
             ...     presample_mean=np.zeros(2),
@@ -3381,7 +3381,7 @@ class NormalGammaPrior(_AdaptivePrior):
 
         Example:
             >>> import numpy as np
-            >>> from cultivars._internals._priors import PriorContext
+            >>> from cultivars.bayes.priors import PriorContext
             >>> ctx = PriorContext(
             ...     k_endog=2, order=1, scales=np.ones(2), presample_mean=np.zeros(2)
             ... )

@@ -99,7 +99,7 @@ def _simulate_perturbation(
 
     Example:
         >>> import numpy as np
-        >>> from cultivars._internals._solutions import _PerturbationSolution
+        >>> from cultivars.engine._internals._solutions import _PerturbationSolution
         >>> sol = _PerturbationSolution(
         ...     h_x=np.array([[0.5]]), g_x=np.array([[2.0]]), eta=np.array([[1.0]]),
         ...     h_xx=np.zeros((1, 1)), g_xx=np.zeros((1, 1)), h_ss=np.zeros(1),

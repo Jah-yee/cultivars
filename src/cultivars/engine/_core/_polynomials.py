@@ -64,7 +64,7 @@ def _expand_ar(
         SpecificationError: If seasonal terms are present but ``period < 1``.
 
     Example:
-        >>> np.round(expand_ar(np.array([0.5]), np.array([0.4]), 4), 3)
+        >>> np.round(_expand_ar(np.array([0.5]), np.array([0.4]), 4), 3)
         array([ 0.5, -0. , -0. ,  0.4, -0.2])
     """
     poly = np.concatenate(([1.0], -np.asarray(ar, dtype=np.float64)))

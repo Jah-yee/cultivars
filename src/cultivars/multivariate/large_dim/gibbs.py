@@ -155,15 +155,14 @@ import numpy as np
 import numpy.typing as npt
 
 from ...bayes.priors import IndependentNormalWishartPrior
-from ...engine._core import SummaryTable, Trend
-from ...engine._internals import (
-    _GibbsBayesianVectorAutoRegressionModel,
-    _MarginalLikelihoodSelection,
-    _Prior,
-    _VectorGibbsFit,
-    _VectorPosteriorDrawsResult,
-)
+from ...engine._core._types import Trend
+from ...engine._internals._fits import _VectorGibbsFit
+from ...engine._internals._models import _GibbsBayesianVectorAutoRegressionModel
+from ...engine._internals._priors import _Prior
+from ...engine._internals._results import _VectorPosteriorDrawsResult
+from ...engine._internals._selections import _MarginalLikelihoodSelection
 from ...exceptions import SpecificationError
+from ...summary import SummaryTable
 
 __all__ = ["GibbsBVAR", "GibbsBVARResult"]
 
