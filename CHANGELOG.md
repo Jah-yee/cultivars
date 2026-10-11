@@ -9,6 +9,42 @@ listed under Changed.
 
 ## [Unreleased]
 
+## [1.0.0a3] - 2026-10-11
+
+Structure and documentation release. No public model, result or test was
+renamed or removed; code that imports from the public leaf modules is
+unaffected.
+
+### Added
+
+- `cultivars.summary`: the public home of `SummaryTable` and
+  `InformationCriteria`, the records every `summary()` and
+  `information_criteria` returns.
+- Example gallery: ten worked examples on live FRED data, from recursive
+  and long-run SVARs through sign, narrative and set identification,
+  dynamic Nelson-Siegel, Markov switching, VECM, Bayesian VARs, volatility
+  backtests and forecast evaluation, built and executed with the docs.
+- `tools` dependency group (`pre-commit`, `tox`, `tox-uv`), included in
+  `dev`.
+
+### Changed
+
+- The numerical core and internal layers moved from `cultivars._core` and
+  `cultivars._internals` to `cultivars.engine._core` and
+  `cultivars.engine._internals`, with engine helpers renamed to private
+  (`validate_choice` -> `_validate_choice`, ...). These were never public
+  API; code importing them must follow the move.
+- `TimeVaryingSVAR` references in the `time_varying` docstrings now name
+  the class, `TVPSVAR`.
+- CI: action versions bumped (scorecard, CodeQL, gh-pages, dependency
+  review, GPG import); prerelease publishing checks PyPI before upload.
+
+### Fixed
+
+- `uv run pre-commit install` from a clean `uv sync` (#495).
+- Doctests that called renamed engine functions or used pre-move import
+  paths.
+
 ## [1.0.0a2] - 2026-10-08
 
 Documentation release. Every public module, class, method and dataclass field
@@ -103,7 +139,8 @@ placeholder.
 
 - Initial file dump.
 
-[Unreleased]: https://github.com/nikhilxsunder/cultivars/compare/v1.0.0a2...HEAD
+[Unreleased]: https://github.com/nikhilxsunder/cultivars/compare/v1.0.0a3...HEAD
+[1.0.0a3]: https://github.com/nikhilxsunder/cultivars/compare/v1.0.0a2...v1.0.0a3
 [1.0.0a2]: https://github.com/nikhilxsunder/cultivars/compare/v1.0.0a1...v1.0.0a2
 [1.0.0a1]: https://github.com/nikhilxsunder/cultivars/compare/v0.0.1...v1.0.0a1
 [0.0.1]: https://github.com/nikhilxsunder/cultivars/releases/tag/v0.0.1
