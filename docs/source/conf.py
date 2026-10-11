@@ -316,7 +316,7 @@ plot_pre_code: str = "import numpy as np\nimport matplotlib.pyplot as plt\nimpor
 sphinx_gallery_conf: dict[str, object] = {
     "examples_dirs": [str(_ROOT / "examples")],  # needs examples/GALLERY_HEADER.rst
     "gallery_dirs": ["auto_examples"],  # relative to docs/source
-    "filename_pattern": r"/plot_",  # only plot_*.py are executed
+    "filename_pattern": r"/plot_\d{2}_\w+\.py$",  # plot_NN_name.py only; rejects "name 2.py"
     "ignore_pattern": r"/_",
     "within_subsection_order": "ExampleTitleSortKey",
     "doc_module": ("cultivars",),
