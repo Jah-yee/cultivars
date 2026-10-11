@@ -167,6 +167,12 @@ ignore = ["D203", "D213"]
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+[tool.ruff.lint.per-file-ignores]
+"examples/plot_*.py" = ["D"]
+
+[tool.ruff.lint.isort]
+known-local-folder = ["_fred"]
+
 [tool.bandit]
 exclude_dirs = ["tests", "docs"]
 
