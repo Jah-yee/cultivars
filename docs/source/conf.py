@@ -226,7 +226,7 @@ html_theme_options: dict[str, object] = {
         "image_light": "_static/cultivars-logo.png",
         "image_dark": "_static/cultivars-logo.png",
     },
-    "header_links_before_dropdown": 3,
+    "header_links_before_dropdown": 6,
     "navbar_start": ["navbar-logo", "version-switcher"],
     "switcher": {
         "json_url": _DOCS_SITE_URL + "switcher.json",
