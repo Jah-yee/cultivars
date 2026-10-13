@@ -37,6 +37,7 @@ dependencies = [
     "scipy",
     "fedfred",
     "matplotlib",
+    "ns-sdn==1.0.0a1",
 ]
 
 [project.optional-dependencies]
