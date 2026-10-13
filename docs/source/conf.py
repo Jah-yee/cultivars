@@ -171,6 +171,7 @@ intersphinx_mapping: dict[str, tuple[str, str | None]] = {
     "polars": ("https://docs.pola.rs/api/python/stable/", None),
     "matplotlib": ("https://matplotlib.org/stable/", None),
     "fedfred": ("https://nikhilxsunder.github.io/fedfred/", None),
+    "ns-sdn": ("https://nikhilxsunder.github.io/ns-sdn/", None),
 }
 intersphinx_timeout: int = 10
 
